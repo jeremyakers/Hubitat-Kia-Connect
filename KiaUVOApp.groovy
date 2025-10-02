@@ -52,7 +52,8 @@ definition(
     description: "Connect to Kia UVO (Connected Services) to monitor and control your Kia vehicle",
     category: "Convenience",
     iconUrl: "",
-    iconX2Url: ""
+    iconX2Url: "",
+    importUrl: "https://raw.githubusercontent.com/jeremyakers/Hubitat-Kia-Connect/main/KiaUVOApp.groovy"
 )
 
 preferences {
