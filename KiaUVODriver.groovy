@@ -294,7 +294,7 @@ def updateVehicleStatus(Map statusData) {
                         def presenceValue = value.toString() == "true" ? "present" : "not present"
                         sendEvent(name: 'presence', value: presenceValue)
                     }
-                    else if (key == "DoorLocks" || key == "Hood" || key == "Trunk" || key == "Windows") {
+                    else if (key == "FrontLeftDoor" || key == "FrontRightDoor" || key == "BackLeftDoor" || key == "BackRightDoor" || key == "Hood" || key == "Trunk" || key == "Windows") {
                         // Update combined contact sensor status when any opening status changes
                         updateContactSensorStatus()
                     }
@@ -450,9 +450,24 @@ def updateContactSensorStatus() {
     try {
         def isAnyOpen = false
         
-        // Check if doors are unlocked (could indicate doors are open/accessible)
-        def doorLocks = device.currentValue("DoorLocks")
-        if (doorLocks?.toLowerCase()?.contains("unlocked")) {
+        // Check individual door status (physical open/closed)
+        def frontLeftDoor = device.currentValue("FrontLeftDoor")
+        if (frontLeftDoor?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        def frontRightDoor = device.currentValue("FrontRightDoor")
+        if (frontRightDoor?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        def backLeftDoor = device.currentValue("BackLeftDoor")
+        if (backLeftDoor?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        def backRightDoor = device.currentValue("BackRightDoor")
+        if (backRightDoor?.toLowerCase()?.contains("open")) {
             isAnyOpen = true
         }
         
@@ -478,7 +493,7 @@ def updateContactSensorStatus() {
         def contactValue = isAnyOpen ? "open" : "closed"
         sendEvent(name: 'contact', value: contactValue)
         
-        if (debugLogging) log.debug "Contact sensor updated: ${contactValue} (doors: ${doorLocks}, hood: ${hood}, trunk: ${trunk}, windows: ${windows})"
+        if (debugLogging) log.debug "Contact sensor updated: ${contactValue} (FL: ${frontLeftDoor}, FR: ${frontRightDoor}, BL: ${backLeftDoor}, BR: ${backRightDoor}, hood: ${hood}, trunk: ${trunk}, windows: ${windows})"
         
     } catch (Exception e) {
         log.error "Failed to update contact sensor status: ${e.message}"
