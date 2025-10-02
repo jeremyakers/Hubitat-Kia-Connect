@@ -13,13 +13,17 @@ metadata {
         name: "Kia UVO Vehicle Driver",
         namespace: "kia-uvo",
         author: "Jeremy Akers",
-        description: "Driver for individual Kia vehicles connected through UVO Connect services"
+        description: "Driver for individual Kia vehicles connected through UVO Connect services",
+        importUrl: "https://raw.githubusercontent.com/jeremyakers/Hubitat-Kia-Connect/main/KiaUVODriver.groovy"
     ) {
         capability "Initialize"
         capability "Refresh"
         capability "Actuator"
         capability "Sensor"
         capability "Battery"
+        capability "Switch"
+        capability "Lock"
+        capability "PresenceSensor"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -230,6 +234,32 @@ def StopCharge() {
 }
 
 // ====================
+// STANDARD CAPABILITY COMMANDS
+// ====================
+
+// Switch capability commands (for climate control)
+def on() {
+    log.info "Turning on climate control for ${device.label} (Switch capability)"
+    StartClimate()
+}
+
+def off() {
+    log.info "Turning off climate control for ${device.label} (Switch capability)"
+    StopClimate()
+}
+
+// Lock capability commands (for door locks)
+def lock() {
+    log.info "Locking ${device.label} (Lock capability)"
+    Lock()
+}
+
+def unlock() {
+    log.info "Unlocking ${device.label} (Lock capability)"
+    Unlock()
+}
+
+// ====================
 // STATUS UPDATES
 // ====================
 
@@ -241,10 +271,29 @@ def updateVehicleStatus(Map statusData) {
             if (value != null) {
                 try {
                     sendEvent(name: key, value: value.toString())
-                    if(key == "BatterySoC")
-                    {
-                        device.sendEvent(name: 'battery', value: value.toString())
+                    
+                    // Map custom attributes to standard Hubitat capability attributes
+                    if (key == "BatterySoC") {
+                        sendEvent(name: 'battery', value: value.toString())
                     }
+                    else if (key == "AirControl") {
+                        // Map climate control status to Switch capability
+                        def switchValue = value.toString().toLowerCase().contains("on") || 
+                                         value.toString().toLowerCase().contains("running") || 
+                                         value.toString().toLowerCase().contains("active") ? "on" : "off"
+                        sendEvent(name: 'switch', value: switchValue)
+                    }
+                    else if (key == "DoorLocks") {
+                        // Map door lock status to Lock capability
+                        def lockValue = value.toString().toLowerCase().contains("locked") ? "locked" : "unlocked"
+                        sendEvent(name: 'lock', value: lockValue)
+                    }
+                    else if (key == "isHome") {
+                        // Map home detection to PresenceSensor capability
+                        def presenceValue = value.toString() == "true" ? "present" : "not present"
+                        sendEvent(name: 'presence', value: presenceValue)
+                    }
+                    
                     if (debugLogging) log.debug "Updated ${key} = ${value}"
                 } catch (Exception e) {
                     log.error "Failed to update ${key}: ${e.message}"
