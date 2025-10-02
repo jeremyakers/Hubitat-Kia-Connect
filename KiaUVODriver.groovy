@@ -24,6 +24,7 @@ metadata {
         capability "Switch"
         capability "Lock"
         capability "PresenceSensor"
+        capability "ContactSensor"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -293,6 +294,10 @@ def updateVehicleStatus(Map statusData) {
                         def presenceValue = value.toString() == "true" ? "present" : "not present"
                         sendEvent(name: 'presence', value: presenceValue)
                     }
+                    else if (key == "DoorLocks" || key == "Hood" || key == "Trunk" || key == "Windows") {
+                        // Update combined contact sensor status when any opening status changes
+                        updateContactSensorStatus()
+                    }
                     
                     if (debugLogging) log.debug "Updated ${key} = ${value}"
                 } catch (Exception e) {
@@ -438,5 +443,44 @@ def updateLocation(latitude, longitude) {
         if (debugLogging) log.debug "Location updated: ${latitude}, ${longitude}"
     } catch (Exception e) {
         log.error "Failed to update location: ${e.message}"
+    }
+}
+
+def updateContactSensorStatus() {
+    try {
+        def isAnyOpen = false
+        
+        // Check if doors are unlocked (could indicate doors are open/accessible)
+        def doorLocks = device.currentValue("DoorLocks")
+        if (doorLocks?.toLowerCase()?.contains("unlocked")) {
+            isAnyOpen = true
+        }
+        
+        // Check hood status
+        def hood = device.currentValue("Hood")
+        if (hood?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        // Check trunk status
+        def trunk = device.currentValue("Trunk")
+        if (trunk?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        // Check windows status (if any window is open)
+        def windows = device.currentValue("Windows")
+        if (windows?.toLowerCase()?.contains("open")) {
+            isAnyOpen = true
+        }
+        
+        // Set contact sensor value
+        def contactValue = isAnyOpen ? "open" : "closed"
+        sendEvent(name: 'contact', value: contactValue)
+        
+        if (debugLogging) log.debug "Contact sensor updated: ${contactValue} (doors: ${doorLocks}, hood: ${hood}, trunk: ${trunk}, windows: ${windows})"
+        
+    } catch (Exception e) {
+        log.error "Failed to update contact sensor status: ${e.message}"
     }
 } 
