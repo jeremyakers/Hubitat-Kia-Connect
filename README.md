@@ -1,52 +1,191 @@
-# Hyundai Bluelink® Integration for Hubitat
+# Hubitat Kia Connect
 
-Author: Tim Yuhl (@WindowWasher on the Hubitat Community Forums)
+**Kia UVO Connect Integration for Hubitat Elevation**
 
-_This applcation and driver is released under the M.I.T. license. Use at your own risk_
+_This application and driver is released under the M.I.T. license. Use at your own risk_
 
-**What is it?**
+## What is it?
 
-Hyundai Bluelink® is a connected vehicle service that remotely collects telemetrics and allows users to issue commands to vehicles that support the service and are registered. Bluelink is implemented with server-based web services.  This package interfaces with those web services to enable Hubitat users to do things such as remotely lock or unlock their cars or remotely start the vehicle. The Hyundai Bluelink Integration package consists of a user  application and driver.
+Kia UVO Connect is a connected vehicle service that remotely collects telemetrics and allows users to issue commands to vehicles that support the service. This Hubitat integration interfaces with the Kia UVO Connect web services to enable remote vehicle control and monitoring directly from your smart home hub.
 
-**Using this package, users can remotely:**
+## Features
 
-1. Lock or unlock the vehicle
-2. Get vehicle status (doors locked, enginer off, etc.)
-3. Remotely start or stop the engine
-4. Get the vehicle's current location (latitude and longitude)
+**Remote Vehicle Control:**
+- 🔐 Lock/unlock doors
+- 🌡️ Start/stop climate control with configurable parameters
+- ⚡ Start/stop EV charging
+- 📍 Get current location with Google Maps integration
+- 🔊 Horn and lights activation/deactivation
+- 🏠 Home location detection with customizable radius
 
-**To use this application and driver:**
+**Vehicle Monitoring:**
+- 🔋 Battery level and charging status (for EVs)
+- ⛽ Fuel level (for ICE vehicles)
+- 🚗 Vehicle status (doors, engine, climate, etc.)
+- 📊 Comprehensive HTML status display
+- 📍 GPS coordinates with speed, heading, and altitude
+- ⏰ Charging time remaining in multiple formats
+- 🕐 Estimated charge completion timestamp
 
-1. Install the driver code in the "Drivers Code" section and the Application code in the "Application Code" section of Hubitat.
-2. Create an instance of the application in the "Apps" section of Hubitat.
-3. Configure the Hyundai Bluelink Application by following the steps
- in the application. Child drivers for each vehicle registered to your Bluelink account will automatically be created after being discovered.
-4. Review the Remote Start Options. Remote start options are grouped into profiles, which are used by the vehicle driver to set the options for remote engine start.
+**Smart Features:**
+- 🔄 Automatic session management with retry logic
+- 📱 Configurable auto-refresh after commands
+- 🏡 Home/away detection based on GPS location
+- 🔧 Per-vehicle climate control settings
+- 📝 Configurable debug logging with auto-disable
+- 🚨 Error events for automation triggers
 
-**Notes on Use:**
+## Supported Vehicles
 
-1. Please do not make excessive API calls. Hyundai monitors usage and may choose to restrict your account if you make too many remote calls.
-2. Some calls can take several secornds to complete (like Location). There is an option in the driver to call Refresh to read cached status (the default). Using cached data is quite fast, but data may be out of date if the vehicle has been sitting unused. Turning on the "Full Refresh" option will bypass the cache and contact the vehicle to refresh the data. "Full Refresh" commands can take up to 2 minutes, versus refresh commands that use the cached data.
-3. Remote Start will fail if your vehicle is unlocked and it may not be logged as a failure.
+**Tested Models:**
+- Kia EV6
+- Kia EV9
+- Other Kia vehicles with UVO Connect (US market)
 
-**Known Vehicle Models That Have Been Tested With This App**
+**Requirements:**
+- Kia vehicle with UVO Connect service (2019+)
+- Active UVO Connect subscription
+- US market vehicle (other regions not currently supported)
 
-1. Hyundai Palisade
-2. Hyundai Ioniq 5 (Thanks, lotussteve for helping out)
+## Installation
 
-**Current Limitations**
+### 1. Install the Code
 
-1. Only U.S. vehicles that have Bluelink are currently supported.
-2. Has not be tested wih hybrid vehicles
-3. Do not become too dependent on this package. It is based on an undocumented API and could stop working at any time.
-4. Currently, this package is not available for installation using Hubitat Package Manager. If there is enough interest in this package, I'll add it to HPM.
+**Install the Driver:**
+1. Go to **Hubitat Web Interface** → **Drivers Code**
+2. Click **New Driver**
+3. Copy and paste the contents of `KiaUVODriver.groovy`
+4. Click **Save**
 
-**Thanks! This package would not have been possible without:**
+**Install the App:**
+1. Go to **Hubitat Web Interface** → **Apps Code**
+2. Click **New App**
+3. Copy and paste the contents of `KiaUVOApp.groovy`
+4. Click **Save**
 
-1. @thecloudtaylor's excellent app/driver for the Honeywell Home WiFi Thermostats, which served as a template for this app/driver.
-2. The open source Bluelinky Node.js project, which reverse-engineered the undocumented Bluelink API and supports a Node.js application. Thanks to @Hacksore and team for their great work.
+### 2. Configure the App
 
-**_Please report any problems or bugs to the developer_**
+1. Go to **Apps** → **Add User App**
+2. Select **Kia UVO Connect**
+3. Enter your Kia UVO Connect credentials
+4. Click **Authenticate & Discover Vehicles**
+5. Your vehicles will be automatically discovered and created as devices
 
-Note: When reporting problems, please provide steps to reproduce and logs. Make sure that logging is set to "trace". DO NOT submit logs on public-facing forums that contain your Bluelink account information.
+### 3. Configure Vehicle Settings
 
+For each vehicle device:
+1. Go to the device page
+2. Configure climate control preferences (temperature, duration, accessories)
+3. Set home location coordinates and radius
+4. Adjust auto-refresh settings as desired
+
+## Usage
+
+### Basic Commands
+
+**From Device Page:**
+- **Refresh** - Get cached vehicle status (fast)
+- **Poll Vehicle** - Get fresh status directly from vehicle (slower, more accurate)
+- **Lock/Unlock** - Control door locks
+- **Start/Stop Climate** - Control climate system with your configured settings
+- **Start/Stop Charge** - Control EV charging (EV models only)
+- **Horn and Lights** - Activate horn and lights
+- **Stop Horn and Lights** - Deactivate horn and lights
+- **Get Location** - Force location update
+
+### Automation Integration
+
+**Available Attributes for Rules:**
+- `BatterySoC` / `battery` - Battery percentage
+- `FuelLevel` - Fuel level percentage  
+- `EVRange` - Electric range in miles
+- `ChargingStatus` - "Charging" or "Not Charging"
+- `DoorLock` - "locked" or "unlocked"
+- `AirControl` - Climate control status
+- `isHome` - true/false based on home location
+- `Latitude` / `Longitude` - GPS coordinates
+- `EstimatedChargeCompletionTime` - ISO timestamp for automations
+
+**Example Rule Machine Uses:**
+- Send notification when charging completes
+- Turn on garage lights when vehicle arrives home
+- Start climate control before departure time
+- Alert if vehicle is left unlocked away from home
+
+## Configuration Options
+
+### App Settings
+- **Username/Password** - Your Kia UVO Connect credentials
+- **Debug Logging** - Enable detailed logging for troubleshooting
+- **Auto-disable Debug** - Automatically turn off debug logging after specified minutes
+
+### Device Settings
+- **Climate Control** - Temperature, duration, heated accessories
+- **Home Location** - Latitude, longitude, and radius for home detection
+- **Auto Refresh** - Enable automatic status updates after commands
+- **Refresh Delay** - Time to wait before auto-refresh (seconds)
+
+## Troubleshooting
+
+### Common Issues
+
+**Authentication Failures:**
+- Verify your UVO Connect credentials
+- Ensure your account doesn't have 2FA enabled
+- Check that your vehicle is properly registered with UVO Connect
+
+**Commands Not Working:**
+- Try the "Poll Vehicle" command to get fresh status
+- Check debug logs for specific error messages
+- Ensure your vehicle has cellular connectivity
+
+**Stale Data:**
+- Use "Poll Vehicle" instead of "Refresh" for real-time data
+- Increase the auto-refresh delay if commands seem to conflict
+
+### Debug Logging
+
+Enable debug logging in the app settings for detailed troubleshooting information. Debug logging will automatically disable after the configured time period to prevent log spam.
+
+## Technical Details
+
+**API Endpoints:** Uses official Kia UVO Connect web services
+**Authentication:** OAuth-style authentication with session management
+**Rate Limiting:** Built-in delays to respect API limits
+**Error Handling:** Automatic retry logic for transient failures
+**Security:** Credentials stored securely in Hubitat's encrypted database
+
+## Limitations
+
+1. **US Market Only** - Currently supports US Kia vehicles only
+2. **UVO Connect Required** - Vehicle must have active UVO Connect subscription
+3. **API Dependency** - Based on undocumented APIs that could change
+4. **Network Dependent** - Requires vehicle to have cellular connectivity
+5. **Rate Limits** - Excessive API calls may result in account restrictions
+
+## Credits
+
+**Development:**
+- Built using reverse-engineered API calls from the `hyundai_kia_connect_api` Python library
+- Inspired by the Bluelinky Node.js project
+- Original Hyundai Bluelink integration by Tim Yuhl (@WindowWasher)
+
+**Special Thanks:**
+- @Hacksore and the Bluelinky team for API research
+- The `hyundai_kia_connect_api` Python library maintainers
+- Hubitat community for testing and feedback
+
+## Support
+
+**Reporting Issues:**
+- Provide detailed steps to reproduce the problem
+- Include relevant log entries (with debug logging enabled)
+- **Never share your UVO Connect credentials in public forums**
+
+**Feature Requests:**
+- Submit via GitHub issues
+- Include specific use cases and benefits
+
+---
+
+**⚠️ Disclaimer:** This integration uses unofficial APIs that could change or break at any time. Use at your own risk and don't become overly dependent on this integration for critical vehicle functions.
