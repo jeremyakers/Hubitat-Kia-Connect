@@ -25,7 +25,7 @@ metadata {
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
-        capability "Thermostat"
+        capability "ThermostatSetpoint"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -135,9 +135,6 @@ def updated() {
 
 def initialize() {
     log.info "Initializing Kia UVO Vehicle Driver for ${device.label}"
-    
-    // Initialize thermostat fan mode (vehicles only support auto)
-    sendEvent(name: "thermostatFanMode", value: "auto")
     
     // Schedule auto-refresh if enabled
     unschedule()
@@ -259,58 +256,22 @@ def unlock() {
     Unlock()
 }
 
-// Thermostat capability commands (for climate control)
+// ThermostatSetpoint capability command (for climate temperature control)
 def setThermostatSetpoint(temperature) {
-    log.info "Setting thermostat setpoint to ${temperature}°F for ${device.label}"
+    log.info "Setting climate temperature to ${temperature}°F for ${device.label}"
     
     // Update the climate temperature setting
     device.updateSetting("climateTemp", temperature as Integer)
     
     // If climate is currently on, restart it with new temperature
-    def currentMode = device.currentValue("thermostatMode")
-    if (currentMode == "auto") {
+    def currentSwitch = device.currentValue("switch")
+    if (currentSwitch == "on") {
         log.info "Climate is on, restarting with new temperature: ${temperature}°F"
         StartClimate()
     }
     
     // Update the thermostat setpoint attribute
     sendEvent(name: "thermostatSetpoint", value: temperature)
-}
-
-def auto() {
-    log.info "Setting thermostat to auto mode for ${device.label} (Thermostat capability)"
-    StartClimate()
-}
-
-def off() {
-    log.info "Setting thermostat to off mode for ${device.label} (Thermostat capability)"
-    StopClimate()
-}
-
-def fanAuto() {
-    log.info "Setting fan to auto mode for ${device.label} (always auto for vehicles)"
-    // Vehicle fan is always auto, so this is a no-op
-    sendEvent(name: "thermostatFanMode", value: "auto")
-}
-
-def setThermostatMode(mode) {
-    log.info "Setting thermostat mode to ${mode} for ${device.label}"
-    if (mode == "auto") {
-        auto()
-    } else if (mode == "off") {
-        off()
-    } else {
-        log.warn "Unsupported thermostat mode: ${mode}. Vehicle only supports 'auto' and 'off'"
-    }
-}
-
-def setThermostatFanMode(fanMode) {
-    log.info "Setting fan mode to ${fanMode} for ${device.label}"
-    if (fanMode == "auto") {
-        fanAuto()
-    } else {
-        log.warn "Unsupported fan mode: ${fanMode}. Vehicle only supports 'auto'"
-    }
 }
 
 // ====================
@@ -336,10 +297,6 @@ def updateVehicleStatus(Map statusData) {
                                          value.toString().toLowerCase().contains("running") || 
                                          value.toString().toLowerCase().contains("active") ? "on" : "off"
                         sendEvent(name: 'switch', value: switchValue)
-                        
-                        // Map climate control status to Thermostat capability
-                        def thermostatMode = switchValue == "on" ? "auto" : "off"
-                        sendEvent(name: 'thermostatMode', value: thermostatMode)
                     }
                     else if (key == "AirTemp") {
                         // Map air temperature to thermostat setpoint
