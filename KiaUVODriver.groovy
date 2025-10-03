@@ -136,6 +136,12 @@ def updated() {
 def initialize() {
     log.info "Initializing Kia UVO Vehicle Driver for ${device.label}"
     
+    // Set supported thermostat modes (vehicle only supports auto and off)
+    sendEvent(name: "supportedThermostatModes", value: ["auto", "off"])
+    
+    // Set supported fan modes (vehicle only supports auto)
+    sendEvent(name: "supportedThermostatFanModes", value: ["auto"])
+    
     // Initialize thermostat fan mode (vehicles only support auto)
     sendEvent(name: "thermostatFanMode", value: "auto")
     
