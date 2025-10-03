@@ -26,9 +26,6 @@ metadata {
         capability "PresenceSensor"
         capability "ContactSensor"
         capability "Thermostat"
-        capability "ThermostatSetpoint"
-        capability "ThermostatMode"
-        capability "ThermostatFanMode"
 
         // Vehicle Information
         attribute "NickName", "string"
