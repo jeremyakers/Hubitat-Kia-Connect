@@ -82,6 +82,7 @@ metadata {
         attribute "vehicleKey", "string"
         attribute "statusHtml", "string"
         attribute "error", "string"
+        attribute "mqttBatteryPublish", "string"
 
         // Commands
                 command "refresh"
@@ -120,6 +121,14 @@ metadata {
         input name: "homeLatitude", type: "text", title: "Home latitude", description: "Decimal degrees (e.g., 40.712776)", required: false
         input name: "homeLongitude", type: "text", title: "Home longitude", description: "Decimal degrees (e.g., -74.006021)", required: false
         input name: "homeRadius", type: "number", title: "Home radius (meters)", defaultValue: 100, range: "10..1000", description: "Distance from home to consider 'at home'"
+        
+        // MQTT Configuration
+        input name: "enableMqtt", type: "bool", title: "Enable MQTT Battery Publishing", description: "Publish battery SoC to MQTT when home and plugged in", defaultValue: false
+        input name: "mqttBroker", type: "text", title: "MQTT Broker/Webhook URL", description: "IP address (192.168.1.100) or HTTP webhook URL for MQTT publishing", required: false
+        input name: "mqttPort", type: "number", title: "MQTT Port", description: "MQTT broker port (ignored for HTTP webhooks)", defaultValue: 1883, required: false
+        input name: "mqttTopic", type: "text", title: "MQTT Topic", description: "Topic to publish battery SoC (e.g., homeassistant/sensor/kia_battery/state)", required: false
+        input name: "mqttUsername", type: "text", title: "MQTT Username", description: "MQTT broker username or HTTP auth (optional)", required: false
+        input name: "mqttPassword", type: "password", title: "MQTT Password", description: "MQTT broker password or HTTP auth (optional)", required: false
     }
 }
 
@@ -290,6 +299,8 @@ def updateVehicleStatus(Map statusData) {
                     // Map custom attributes to standard Hubitat capability attributes
                     if (key == "BatterySoC") {
                         sendEvent(name: 'battery', value: value.toString())
+                        // Publish to MQTT if conditions are met
+                        publishBatteryToMqtt()
                     }
                     else if (key == "AirControl") {
                         // Map climate control status to Switch capability
@@ -522,5 +533,87 @@ def updateContactSensorStatus() {
         
     } catch (Exception e) {
         log.error "Failed to update contact sensor status: ${e.message}"
+    }
+}
+
+// ====================
+// MQTT PUBLISHING
+// ====================
+
+def publishBatteryToMqtt() {
+    try {
+        // Check if MQTT is enabled
+        if (!enableMqtt || !mqttBroker || !mqttTopic) {
+            return
+        }
+        
+        // Check if vehicle is home
+        def isHome = device.currentValue("isHome")
+        if (isHome != "true") {
+            if (debugLogging) log.debug "Vehicle not at home, skipping MQTT publish"
+            return
+        }
+        
+        // Check if vehicle is plugged in
+        def plugStatus = device.currentValue("PlugStatus")
+        if (!plugStatus || !plugStatus.toLowerCase().contains("connected")) {
+            if (debugLogging) log.debug "Vehicle not plugged in, skipping MQTT publish"
+            return
+        }
+        
+        // Get battery SoC
+        def batterySoC = device.currentValue("BatterySoC")
+        if (!batterySoC) {
+            log.warn "No battery SoC available for MQTT publish"
+            return
+        }
+        
+        // Clean up battery value (remove % if present)
+        def batteryValue = batterySoC.toString().replaceAll("[^0-9.]", "")
+        
+        // Create MQTT message payload
+        def payload = batteryValue
+        
+        // For now, log the MQTT message that would be published
+        // Users can use this with Hubitat's MQTT integration or external automation
+        log.info "🔋 MQTT: Would publish to ${mqttTopic} = ${payload}% (vehicle at home and plugged in)"
+        
+        // Send a custom event that can be used by Rule Machine or other apps
+        // to trigger MQTT publishing through Hubitat's MQTT integration
+        sendEvent(name: "mqttBatteryPublish", value: payload, descriptionText: "Battery SoC ready for MQTT publish: ${payload}%")
+        
+        // Alternative: Use HTTP POST to an MQTT bridge/webhook if user has one set up
+        // This would require the user to set up a simple HTTP-to-MQTT bridge
+        if (mqttBroker.contains("http")) {
+            // Assume it's an HTTP webhook endpoint
+            def webhookMessage = [
+                uri: mqttBroker,
+                requestContentType: "application/json",
+                body: [
+                    topic: mqttTopic,
+                    payload: payload,
+                    retain: true
+                ],
+                timeout: 10
+            ]
+            
+            // Add authentication if provided
+            if (mqttUsername && mqttPassword) {
+                webhookMessage.headers = [
+                    "Authorization": "Basic " + "${mqttUsername}:${mqttPassword}".bytes.encodeBase64().toString()
+                ]
+            }
+            
+            httpPost(webhookMessage) { resp ->
+                if (resp.status == 200) {
+                    log.info "✅ Published battery SoC ${payload}% via HTTP webhook to MQTT"
+                } else {
+                    log.warn "HTTP webhook publish failed with status: ${resp.status}"
+                }
+            }
+        }
+        
+    } catch (Exception e) {
+        log.error "Failed to publish battery to MQTT: ${e.message}"
     }
 } 
