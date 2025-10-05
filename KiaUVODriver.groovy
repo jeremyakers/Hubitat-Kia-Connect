@@ -139,6 +139,13 @@ def installed() {
 
 def updated() {
     log.info "Kia UVO Vehicle Driver updated for ${device.label}"
+    
+    // Disconnect from MQTT if connected (will reconnect when needed)
+    if (interfaces.mqtt.isConnected()) {
+        interfaces.mqtt.disconnect()
+        log.info "Disconnected from MQTT broker for reconfiguration"
+    }
+    
     initialize()
 }
 
@@ -578,47 +585,45 @@ def publishBatteryToMqtt() {
         // Clean up battery value (remove % if present)
         def batteryValue = batterySoC.toString().replaceAll("[^0-9.]", "")
         
-        // Create MQTT message payload
-        def payload = batteryValue
-        
-        // Log the MQTT message that would be published
-        log.info "🔋 MQTT: Publishing to ${mqttTopic} = ${payload}% (vehicle at home and plugged in)"
-        
-        // Send a custom event that can be used by Rule Machine or other apps
-        // to trigger MQTT publishing through Hubitat's MQTT integration
-        sendEvent(name: "mqttBatteryPublish", value: payload, descriptionText: "Battery SoC ready for MQTT publish: ${payload}%")
-        
-        // Alternative: Use HTTP POST to an MQTT bridge/webhook if user has one set up
-        if (mqttBroker.contains("http")) {
-            // Assume it's an HTTP webhook endpoint
-            def webhookMessage = [
-                uri: mqttBroker,
-                requestContentType: "application/json",
-                body: [
-                    topic: mqttTopic,
-                    payload: payload,
-                    retain: true
-                ],
-                timeout: 10
-            ]
+        // Connect to MQTT broker if not already connected
+        if (!interfaces.mqtt.isConnected()) {
+            def brokerUrl = mqttBroker.startsWith("tcp://") ? mqttBroker : "tcp://${mqttBroker}:${mqttPort ?: 1883}"
+            def clientId = "hubitat_kia_${device.id}_${now()}"
             
-            // Add authentication if provided
-            if (mqttUsername && mqttPassword) {
-                webhookMessage.headers = [
-                    "Authorization": "Basic " + "${mqttUsername}:${mqttPassword}".bytes.encodeBase64().toString()
-                ]
-            }
+            log.info "🔌 Connecting to MQTT broker: ${brokerUrl}"
+            interfaces.mqtt.connect(brokerUrl, clientId, mqttUsername, mqttPassword)
             
-            httpPost(webhookMessage) { resp ->
-                if (resp.status == 200) {
-                    log.info "✅ Published battery SoC ${payload}% via HTTP webhook to MQTT"
-                } else {
-                    log.warn "HTTP webhook publish failed with status: ${resp.status}"
-                }
-            }
+            // Give it a moment to connect
+            pauseExecution(1000)
+        }
+        
+        // Publish the battery SoC
+        if (interfaces.mqtt.isConnected()) {
+            interfaces.mqtt.publish(mqttTopic, batteryValue, 1, true) // QoS 1, retained
+            log.info "🔋 MQTT: Published to ${mqttTopic} = ${batteryValue}% (vehicle at home and plugged in)"
+            
+            // Send a custom event for Rule Machine integration as well
+            sendEvent(name: "mqttBatteryPublish", value: batteryValue, descriptionText: "Battery SoC published to MQTT: ${batteryValue}%")
+        } else {
+            log.warn "Failed to connect to MQTT broker for publishing"
         }
         
     } catch (Exception e) {
         log.error "Failed to publish battery to MQTT: ${e.message}"
+    }
+}
+
+// Required method for MQTT interface - handles incoming messages
+def parse(String description) {
+    // Parse incoming MQTT messages if we ever subscribe to topics
+    if (debugLogging) log.debug "MQTT message received: ${description}"
+}
+
+// Required method for MQTT interface - handles connection status
+def mqttClientStatus(String message) {
+    if (message.startsWith("Error")) {
+        log.error "MQTT Client Error: ${message}"
+    } else {
+        if (debugLogging) log.debug "MQTT Client Status: ${message}"
     }
 } 
