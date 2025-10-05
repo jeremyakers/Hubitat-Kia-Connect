@@ -200,6 +200,11 @@ def pollVehicle() {
 
 def parse(String description) {
     if (debugLogging) log.debug "Parsing: ${description}"
+    
+    // Handle MQTT messages if this is an MQTT message
+    if (description.contains("mqtt")) {
+        if (debugLogging) log.debug "MQTT message received: ${description}"
+    }
 }
 
 // ====================
@@ -611,12 +616,6 @@ def publishBatteryToMqtt() {
     } catch (Exception e) {
         log.error "Failed to publish battery to MQTT: ${e.message}"
     }
-}
-
-// Required method for MQTT interface - handles incoming messages
-def parse(String description) {
-    // Parse incoming MQTT messages if we ever subscribe to topics
-    if (debugLogging) log.debug "MQTT message received: ${description}"
 }
 
 // Required method for MQTT interface - handles connection status
