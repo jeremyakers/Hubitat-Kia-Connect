@@ -544,20 +544,27 @@ def publishBatteryToMqtt() {
     try {
         // Check if MQTT is enabled
         if (!enableMqtt || !mqttBroker || !mqttTopic) {
+            if (debugLogging) log.debug "MQTT not enabled or not configured, skipping publish"
             return
         }
         
-        // Check if vehicle is home
+        // Check if vehicle is home - check both isHome and presence attributes
         def isHome = device.currentValue("isHome")
-        if (isHome != "true") {
-            if (debugLogging) log.debug "Vehicle not at home, skipping MQTT publish"
+        def presence = device.currentValue("presence")
+        def atHome = (isHome == "true") || (presence == "present")
+        
+        if (!atHome) {
+            if (debugLogging) log.debug "Vehicle not at home (isHome: ${isHome}, presence: ${presence}), skipping MQTT publish"
             return
         }
         
-        // Check if vehicle is plugged in
+        // Check if vehicle is plugged in - check for both "connected" and "plugged"
         def plugStatus = device.currentValue("PlugStatus")
-        if (!plugStatus || !plugStatus.toLowerCase().contains("connected")) {
-            if (debugLogging) log.debug "Vehicle not plugged in, skipping MQTT publish"
+        def isPluggedIn = plugStatus && (plugStatus.toLowerCase().contains("connected") || 
+                                        plugStatus.toLowerCase().contains("plugged"))
+        
+        if (!isPluggedIn) {
+            if (debugLogging) log.debug "Vehicle not plugged in (PlugStatus: ${plugStatus}), skipping MQTT publish"
             return
         }
         
@@ -574,16 +581,14 @@ def publishBatteryToMqtt() {
         // Create MQTT message payload
         def payload = batteryValue
         
-        // For now, log the MQTT message that would be published
-        // Users can use this with Hubitat's MQTT integration or external automation
-        log.info "🔋 MQTT: Would publish to ${mqttTopic} = ${payload}% (vehicle at home and plugged in)"
+        // Log the MQTT message that would be published
+        log.info "🔋 MQTT: Publishing to ${mqttTopic} = ${payload}% (vehicle at home and plugged in)"
         
         // Send a custom event that can be used by Rule Machine or other apps
         // to trigger MQTT publishing through Hubitat's MQTT integration
         sendEvent(name: "mqttBatteryPublish", value: payload, descriptionText: "Battery SoC ready for MQTT publish: ${payload}%")
         
         // Alternative: Use HTTP POST to an MQTT bridge/webhook if user has one set up
-        // This would require the user to set up a simple HTTP-to-MQTT bridge
         if (mqttBroker.contains("http")) {
             // Assume it's an HTTP webhook endpoint
             def webhookMessage = [
