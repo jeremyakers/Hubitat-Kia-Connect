@@ -431,10 +431,9 @@ def updateVehicleStatus(Map statusData) {
 
 def handleSmartPolling() {
     try {
-        // Get current charging status
+        // Get current charging status - this is the definitive source of truth
         def chargingStatus = device.currentValue("ChargingStatus")
-        def isCharging = chargingStatus && (chargingStatus.toLowerCase().contains("charging") || 
-                                          chargingStatus.toLowerCase().contains("active"))
+        def isCharging = chargingStatus && chargingStatus.toLowerCase().contains("charging")
         
         // Cancel any existing charging polls
         unschedule("chargingPoll")
