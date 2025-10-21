@@ -101,7 +101,10 @@ metadata {
     }
 
     preferences {
-        input name: "refreshInterval", type: "number", title: "Auto-refresh interval (minutes)", description: "0 to disable", defaultValue: 30, range: "0..1440"
+        // Smart polling configuration
+        input name: "longTermPollingHours", type: "number", title: "Long-term polling interval (hours)", description: "Background polling when not charging (0 to disable)", defaultValue: 6, range: "0..72"
+        input name: "chargingPollingMinutes", type: "number", title: "Charging polling interval (minutes)", description: "Frequent polling when actively charging", defaultValue: 5, range: "1..60"
+        
         input name: "debugLogging", type: "bool", title: "Enable debug logging", defaultValue: false
         
         // Auto-refresh after commands
@@ -152,11 +155,13 @@ def updated() {
 def initialize() {
     log.info "Initializing Kia UVO Vehicle Driver for ${device.label}"
     
-    // Schedule auto-refresh if enabled
+    // Clear all existing schedules
     unschedule()
-    if (refreshInterval && refreshInterval > 0) {
-        runIn(refreshInterval * 60, refresh)
-        log.debug "Auto-refresh scheduled every ${refreshInterval} minutes"
+    
+    // Schedule long-term polling if enabled
+    if (longTermPollingHours && longTermPollingHours > 0) {
+        runIn(longTermPollingHours * 3600, longTermPoll)
+        log.info "Long-term polling scheduled every ${longTermPollingHours} hours"
     }
     
     // Delay initial status refresh to allow attributes to be set
@@ -177,10 +182,38 @@ def refresh() {
         sendEvent(name: "LastRefreshTime", value: "Failed: " + new Date().format("yyyy-MM-dd HH:mm:ss"))
     }
     
-    // Schedule next refresh if auto-refresh is enabled
-    if (refreshInterval && refreshInterval > 0) {
-        runIn(refreshInterval * 60, refresh)
+    // Note: Smart polling is now handled by updateVehicleStatus() based on charging state
+}
+
+def longTermPoll() {
+    log.info "🕒 Long-term polling for ${device.label} (preserves 12V battery)"
+    
+    try {
+        parent.getVehicleStatus(device)
+        
+        // Schedule next long-term poll if enabled
+        if (longTermPollingHours && longTermPollingHours > 0) {
+            runIn(longTermPollingHours * 3600, longTermPoll)
+            if (debugLogging) log.debug "Next long-term poll scheduled in ${longTermPollingHours} hours"
         }
+    } catch (Exception e) {
+        log.error "Failed to perform long-term poll: ${e.message}"
+        // Still schedule next poll to maintain schedule
+        if (longTermPollingHours && longTermPollingHours > 0) {
+            runIn(longTermPollingHours * 3600, longTermPoll)
+        }
+    }
+}
+
+def chargingPoll() {
+    log.info "🔋 Charging poll for ${device.label} (monitoring charge progress)"
+    
+    try {
+        parent.getVehicleStatus(device)
+        // Note: The charging status check and next poll scheduling happens in updateVehicleStatus()
+    } catch (Exception e) {
+        log.error "Failed to perform charging poll: ${e.message}"
+    }
 }
 
 def pollVehicle() {
@@ -357,9 +390,37 @@ def updateVehicleStatus(Map statusData) {
         
         // Update HTML status display
         updateStatusHtml(statusData)
+        
+        // Smart polling logic - schedule next poll based on charging status
+        handleSmartPolling()
+        
         if (debugLogging) log.debug "Successfully updated vehicle status"
     } else {
         log.warn "statusData is null or empty"
+    }
+}
+
+def handleSmartPolling() {
+    try {
+        // Get current charging status
+        def chargingStatus = device.currentValue("ChargingStatus")
+        def isCharging = chargingStatus && (chargingStatus.toLowerCase().contains("charging") || 
+                                          chargingStatus.toLowerCase().contains("active"))
+        
+        // Cancel any existing charging polls
+        unschedule("chargingPoll")
+        
+        if (isCharging && chargingPollingMinutes && chargingPollingMinutes > 0) {
+            // Vehicle is charging - schedule frequent polling
+            runIn(chargingPollingMinutes * 60, chargingPoll)
+            log.info "🔋 Vehicle is charging - next poll in ${chargingPollingMinutes} minutes"
+        } else {
+            // Vehicle is not charging - rely on long-term polling only
+            if (debugLogging) log.debug "🕒 Vehicle not charging - using long-term polling schedule only"
+        }
+        
+    } catch (Exception e) {
+        log.error "Failed to handle smart polling: ${e.message}"
     }
 }
 
