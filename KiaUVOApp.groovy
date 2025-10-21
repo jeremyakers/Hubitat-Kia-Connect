@@ -717,10 +717,13 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
                     statusData["Hood"] = doorStatus.hood == 0 ? "Closed" : "Open"
                 }
                 
-                // Climate control
+                // Climate control - separate temperature value from unit
                 def climate = vehicleStatus.climate
                 if (climate) {
-                    statusData["AirTemp"] = climate.airTemp?.value + "°" + (climate.airTemp?.unit == 1 ? "F" : "C")
+                    if (climate.airTemp?.value != null) {
+                        statusData["AirTemp"] = climate.airTemp.value.toString()
+                        statusData["AirTempUnit"] = (climate.airTemp?.unit == 1 ? "F" : "C")
+                    }
                     statusData["AirControl"] = climate.airCtrl ? "On" : "Off"
                     statusData["Defrost"] = climate.defrost ? "On" : "Off"
                 }
@@ -740,13 +743,14 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
                     logDebug "🔌 CACHED: batteryPlugin value: ${evStatus.batteryPlugin}"
                     statusData["PlugStatus"] = (evStatus.batteryPlugin >= 2) ? "Plugged In" : "Unplugged"
                     
-                    // Charging power (realTimePower is in kW)
+                    // Charging power (realTimePower is in kW) - separate value from unit
                     if (evStatus.realTimePower != null) {
                         logDebug "⚡ Found charging power: ${evStatus.realTimePower} kW"
-                        statusData["ChargingPower"] = "${evStatus.realTimePower} kW"
+                        statusData["ChargingPower"] = evStatus.realTimePower.toString()
+                        statusData["ChargingPowerUnit"] = "kW"
                     } else {
                         log.debug "⚡ No charging power data available"
-                        statusData["ChargingPower"] = "Not Available"
+                        // Don't send ChargingPower event if not available
                     }
                     
                     // EV Range
@@ -1124,10 +1128,13 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
                     statusData["Hood"] = doorStatus.hood == 0 ? "Closed" : "Open"
                 }
                 
-                // Climate control
+                // Climate control - separate temperature value from unit
                 def climate = vehicleStatus.climate
                 if (climate) {
-                    statusData["AirTemp"] = climate.airTemp?.value + "°" + (climate.airTemp?.unit == 1 ? "F" : "C")
+                    if (climate.airTemp?.value != null) {
+                        statusData["AirTemp"] = climate.airTemp.value.toString()
+                        statusData["AirTempUnit"] = (climate.airTemp?.unit == 1 ? "F" : "C")
+                    }
                     statusData["AirControl"] = climate.airCtrl ? "On" : "Off"
                     statusData["Defrost"] = climate.defrost ? "On" : "Off"
                 }
@@ -1146,10 +1153,11 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
                     // Charging power from fresh data (realTimePower is in kW)
                     if (evStatus.realTimePower != null) {
                         logDebug "⚡ FRESH: Found charging power: ${evStatus.realTimePower} kW"
-                        statusData["ChargingPower"] = "${evStatus.realTimePower} kW"
+                        statusData["ChargingPower"] = evStatus.realTimePower.toString()
+                        statusData["ChargingPowerUnit"] = "kW"
                     } else {
                         log.debug "⚡ FRESH: No charging power data available"
-                        statusData["ChargingPower"] = "Not Available"
+                        // Don't send ChargingPower event if not available
                     }
                     
                     // EV Range from fresh data
@@ -1190,10 +1198,11 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
                     statusData["isEV"] = "false"
                 }
                 
-                // 12V auxiliary battery status (if present)
+                // 12V auxiliary battery status (if present) - separate value from unit
                 def batteryStatus = vehicleStatus.batteryStatus
-                if (batteryStatus && batteryStatus.stateOfCharge) {
-                    statusData["AuxBattery"] = batteryStatus.stateOfCharge?.toString()
+                if (batteryStatus && batteryStatus.stateOfCharge != null) {
+                    statusData["AuxBattery"] = batteryStatus.stateOfCharge.toString()
+                    statusData["AuxBatteryUnit"] = "%"
                 }
                 
                 // Location data
