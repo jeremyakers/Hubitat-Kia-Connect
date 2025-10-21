@@ -60,7 +60,7 @@ metadata {
         attribute "EVRange", "string"
         attribute "ChargingStatus", "string"
         attribute "PlugStatus", "string"
-        attribute "ChargingPower", "string"
+        attribute "ChargingPower", "number"
         attribute "ChargeTimeRemaining", "string"
         attribute "ChargeTimeRemainingMinutes", "string"
         attribute "ChargeTimeRemainingHours", "string"
@@ -71,10 +71,10 @@ metadata {
         attribute "FuelRange", "string"
         
         // 12V Auxiliary Battery
-        attribute "AuxBattery", "string"
+        attribute "AuxBattery", "number"
 
         // Environmental
-        attribute "AirTemp", "string"
+        attribute "AirTemp", "number"
         attribute "OutsideTemp", "string"
         attribute "AirControl", "string"
 
@@ -339,7 +339,40 @@ def updateVehicleStatus(Map statusData) {
         statusData.each { key, value ->
             if (value != null) {
                 try {
-                    sendEvent(name: key, value: value.toString())
+                    // Handle numeric attributes with units separately
+                    if (key == "AuxBattery") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["AuxBatteryUnit"] ?: "%"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue} ${unit}"
+                        }
+                    }
+                    else if (key == "AirTemp") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["AirTempUnit"] ?: "°F"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue}${unit}"
+                        }
+                    }
+                    else if (key == "ChargingPower") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["ChargingPowerUnit"] ?: "kW"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue} ${unit}"
+                        }
+                    }
+                    else if (key.endsWith("Unit")) {
+                        // Skip unit data - it's used with the corresponding value attribute
+                        if (debugLogging) log.debug "Skipping unit data: ${key} = ${value}"
+                    }
+                    else {
+                        // Standard string attribute
+                        sendEvent(name: key, value: value.toString())
+                        if (debugLogging) log.debug "Updated ${key} = ${value}"
+                    }
                     
                     // Map custom attributes to standard Hubitat capability attributes
                     if (key == "BatterySoC") {
@@ -355,14 +388,10 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'switch', value: switchValue)
                     }
                     else if (key == "AirTemp") {
-                        // Map air temperature to thermostat setpoint
-                        try {
-                            def tempValue = value.toString().replaceAll("[^0-9.]", "") // Remove non-numeric characters
-                            if (tempValue && tempValue.isNumber()) {
-                                sendEvent(name: 'thermostatSetpoint', value: tempValue as Double)
-                            }
-                        } catch (Exception e) {
-                            log.warn "Failed to parse temperature value: ${value}"
+                        // Map air temperature to thermostat setpoint (value is already numeric)
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            sendEvent(name: 'thermostatSetpoint', value: numValue)
                         }
                     }
                     else if (key == "DoorLocks") {
