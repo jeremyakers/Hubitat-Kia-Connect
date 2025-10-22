@@ -421,7 +421,8 @@ def updateVehicleStatus(Map statusData) {
         updateStatusHtml(statusData)
         
         // Smart polling logic - schedule next poll based on charging status
-        handleSmartPolling()
+        def newChargingStatus = statusData["ChargingStatus"]
+        handleSmartPolling(newChargingStatus)
         
         if (debugLogging) log.debug "Successfully updated vehicle status"
     } else {
@@ -429,11 +430,15 @@ def updateVehicleStatus(Map statusData) {
     }
 }
 
-def handleSmartPolling() {
+def handleSmartPolling(chargingStatus = null) {
     try {
-        // Get current charging status - this is the definitive source of truth
-        def chargingStatus = device.currentValue("ChargingStatus")
-        def isCharging = chargingStatus && chargingStatus.toLowerCase().contains("charging")
+        // Use passed charging status or get current value as fallback
+        if (chargingStatus == null) {
+            chargingStatus = device.currentValue("ChargingStatus")
+        }
+        def isCharging = chargingStatus && chargingStatus.toString().toLowerCase().contains("charging")
+        
+        if (debugLogging) log.debug "Smart polling check: ChargingStatus='${chargingStatus}', isCharging=${isCharging}"
         
         // Cancel any existing charging polls
         unschedule("chargingPoll")
