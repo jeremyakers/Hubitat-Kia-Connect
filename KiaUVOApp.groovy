@@ -853,13 +853,13 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
                         device.sendEvent(name: "GoogleMapsURL", value: "https://maps.google.com/maps?q=${location.coord.lat},${location.coord.lon}")
                         if (location.speed?.value) {
                             def unit = location.speed.unit == 1 ? "mph" : "km/h"
-                            device.sendEvent(name: "Speed", value: "${location.speed.value} ${unit}")
+                            device.sendEvent(name: "Speed", value: location.speed.value, unit: unit)
                         }
                         if (location.head) {
                             device.sendEvent(name: "Heading", value: location.head.toString())
                         }
                         if (location.coord.alt) {
-                            device.sendEvent(name: "Altitude", value: "${location.coord.alt} m")
+                            device.sendEvent(name: "Altitude", value: location.coord.alt, unit: "m")
                         }
                         
                         // Update home status
@@ -1265,13 +1265,13 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
                         device.sendEvent(name: "GoogleMapsURL", value: "https://maps.google.com/maps?q=${location.coord.lat},${location.coord.lon}")
                         if (location.speed?.value) {
                             def unit = location.speed.unit == 1 ? "mph" : "km/h"
-                            device.sendEvent(name: "Speed", value: "${location.speed.value} ${unit}")
+                            device.sendEvent(name: "Speed", value: location.speed.value, unit: unit)
                         }
                         if (location.head) {
                             device.sendEvent(name: "Heading", value: location.head.toString())
                         }
                         if (location.coord.alt) {
-                            device.sendEvent(name: "Altitude", value: "${location.coord.alt} m")
+                            device.sendEvent(name: "Altitude", value: location.coord.alt, unit: "m")
                         }
                         
                         // Update home status
@@ -1618,13 +1618,13 @@ def handleVehicleCommandResponse(response, device, command, successMessage, isRe
                     if (reJson.payload?.gpsDetail?.speed) {
                         def speed = reJson.payload.gpsDetail.speed
                         def unit = speed.unit == 1 ? "mph" : "km/h"
-                        device.sendEvent(name: "Speed", value: "${speed.value} ${unit}")
+                            device.sendEvent(name: "Speed", value: speed.value, unit: unit)
                     }
                     if (reJson.payload?.gpsDetail?.head) {
                         device.sendEvent(name: "Heading", value: reJson.payload.gpsDetail.head.toString())
                     }
                     if (reJson.payload?.gpsDetail?.coord?.alt) {
-                        device.sendEvent(name: "Altitude", value: "${reJson.payload.gpsDetail.coord.alt} m")
+                        device.sendEvent(name: "Altitude", value: reJson.payload.gpsDetail.coord.alt, unit: "m")
                     }
                     
                     // Update home status
