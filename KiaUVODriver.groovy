@@ -49,9 +49,9 @@ metadata {
         attribute "Latitude", "string"
         attribute "Longitude", "string"
         attribute "GoogleMapsURL", "string"
-        attribute "Speed", "string"
+        attribute "Speed", "number"
         attribute "Heading", "string"
-        attribute "Altitude", "string"
+        attribute "Altitude", "number"
         attribute "isHome", "string"
 
         // EV Specific (if applicable)
