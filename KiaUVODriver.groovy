@@ -664,10 +664,10 @@ def publishBatteryToMqtt() {
             return
         }
         
-        // Check if vehicle is plugged in - check for both "connected" and "plugged"
+        // Check if vehicle is plugged in - check for exact status (avoid "unplugged" matching "plugged")
         def plugStatus = device.currentValue("PlugStatus")
-        def isPluggedIn = plugStatus && (plugStatus.toLowerCase().contains("connected") || 
-                                        plugStatus.toLowerCase().contains("plugged"))
+        def isPluggedIn = plugStatus && (plugStatus.toLowerCase().contains("connected") ||
+                                        plugStatus.toLowerCase() == "plugged in")
         
         if (!isPluggedIn) {
             if (debugLogging) log.debug "Vehicle not plugged in (PlugStatus: ${plugStatus}), skipping MQTT publish"
