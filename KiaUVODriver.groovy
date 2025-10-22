@@ -436,7 +436,7 @@ def handleSmartPolling(chargingStatus = null) {
         if (chargingStatus == null) {
             chargingStatus = device.currentValue("ChargingStatus")
         }
-        def isCharging = chargingStatus && chargingStatus.toString().toLowerCase().contains("charging")
+        def isCharging = chargingStatus && chargingStatus.toString().toLowerCase() == "charging"
         
         if (debugLogging) log.debug "Smart polling check: ChargingStatus='${chargingStatus}', isCharging=${isCharging}"
         
