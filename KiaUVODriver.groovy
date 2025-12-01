@@ -377,8 +377,6 @@ def updateVehicleStatus(Map statusData) {
                     // Map custom attributes to standard Hubitat capability attributes
                     if (key == "BatterySoC") {
                         sendEvent(name: 'battery', value: value.toString())
-                        // Publish to MQTT if conditions are met
-                        publishBatteryToMqtt()
                     }
                     else if (key == "AirControl") {
                         // Map climate control status to Switch capability
@@ -423,6 +421,12 @@ def updateVehicleStatus(Map statusData) {
         // Smart polling logic - schedule next poll based on charging status
         def newChargingStatus = statusData["ChargingStatus"]
         handleSmartPolling(newChargingStatus)
+        
+        // Publish battery to MQTT after all attributes have been updated
+        // This ensures isHome, PlugStatus, and BatterySoC are all current
+        if (statusData.containsKey("BatterySoC")) {
+            publishBatteryToMqtt()
+        }
         
         if (debugLogging) log.debug "Successfully updated vehicle status"
     } else {
