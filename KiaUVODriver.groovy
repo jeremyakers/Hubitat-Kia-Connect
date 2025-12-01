@@ -423,9 +423,9 @@ def updateVehicleStatus(Map statusData) {
         handleSmartPolling(newChargingStatus)
         
         // Publish battery to MQTT after all attributes have been updated
-        // This ensures isHome, PlugStatus, and BatterySoC are all current
+        // Pass statusData directly to avoid relying on device.currentValue() which may not be atomic
         if (statusData.containsKey("BatterySoC")) {
-            publishBatteryToMqtt()
+            publishBatteryToMqtt(statusData)
         }
         
         if (debugLogging) log.debug "Successfully updated vehicle status"
@@ -650,7 +650,7 @@ def updateContactSensorStatus() {
 // MQTT PUBLISHING
 // ====================
 
-def publishBatteryToMqtt() {
+def publishBatteryToMqtt(Map statusData = null) {
     try {
         // Check if MQTT is enabled
         if (!enableMqtt || !mqttBroker || !mqttTopic) {
@@ -658,9 +658,14 @@ def publishBatteryToMqtt() {
             return
         }
         
+        // Use statusData if provided (preferred), otherwise fall back to device.currentValue()
+        // This avoids race conditions where sendEvent() hasn't updated currentValue() yet
+        def isHome = statusData?.isHome ?: device.currentValue("isHome")
+        def presence = statusData?.presence ?: device.currentValue("presence")
+        def plugStatus = statusData?.PlugStatus ?: device.currentValue("PlugStatus")
+        def batterySoC = statusData?.BatterySoC ?: device.currentValue("BatterySoC")
+        
         // Check if vehicle is home - check both isHome and presence attributes
-        def isHome = device.currentValue("isHome")
-        def presence = device.currentValue("presence")
         def atHome = (isHome == "true") || (presence == "present")
         
         if (!atHome) {
@@ -669,7 +674,6 @@ def publishBatteryToMqtt() {
         }
         
         // Check if vehicle is plugged in - check for exact status (avoid "unplugged" matching "plugged")
-        def plugStatus = device.currentValue("PlugStatus")
         def isPluggedIn = plugStatus && (plugStatus.toLowerCase().contains("connected") ||
                                         plugStatus.toLowerCase() == "plugged in")
         
@@ -678,8 +682,7 @@ def publishBatteryToMqtt() {
             return
         }
         
-        // Get battery SoC
-        def batterySoC = device.currentValue("BatterySoC")
+        // Check battery SoC
         if (!batterySoC) {
             log.warn "No battery SoC available for MQTT publish"
             return
