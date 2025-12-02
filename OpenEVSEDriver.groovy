@@ -18,20 +18,13 @@
  * API Documentation: https://openevse.stoplight.io/docs/openevse-wifi-v4/
  */
 
-definition(
-    name: "OpenEVSE WiFi Driver",
-    namespace: "jeremyakers",
-    author: "Jeremy Akers",
-    description: "Monitor and control OpenEVSE charging station with automatic vehicle status refresh on plug/unplug events",
-    category: "Energy",
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "",
-    importUrl: "https://raw.githubusercontent.com/jeremyakers/Hubitat-Kia-Connect/main/OpenEVSEDriver.groovy"
-)
-
 metadata {
-    definition (name: "OpenEVSE WiFi", namespace: "jeremyakers", author: "Jeremy Akers") {
+    definition (
+        name: "OpenEVSE WiFi", 
+        namespace: "jeremyakers", 
+        author: "Jeremy Akers",
+        importUrl: "https://raw.githubusercontent.com/jeremyakers/Hubitat-Kia-Connect/main/OpenEVSEDriver.groovy"
+    ) {
         capability "Switch"
         capability "EnergyMeter"
         capability "PowerMeter"
