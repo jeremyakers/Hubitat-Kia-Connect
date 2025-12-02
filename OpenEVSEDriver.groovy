@@ -60,7 +60,6 @@ metadata {
         command "enableCharging"
         command "disableCharging"
         command "setChargingCurrent", [[name: "current", type: "NUMBER", description: "Current in amps (6-48)"]]
-        command "triggerVehicleRefresh"  // Manually trigger vehicle status refresh
     }
 }
 
@@ -77,13 +76,6 @@ preferences {
         input "mqttUsername", "text", title: "MQTT Username (optional)"
         input "mqttPassword", "password", title: "MQTT Password (optional)"
         input "mqttBaseTopic", "text", title: "MQTT Base Topic", defaultValue: "openevse", description: "Base topic for OpenEVSE (default: openevse)"
-    }
-    
-    section("Vehicle Integration") {
-        input "enableAutoRefresh", "bool", title: "Auto-refresh vehicles on plug/unplug", defaultValue: true, description: "Automatically trigger pollVehicle for configured vehicles when plug/unplug is detected"
-        input "ev6Device", "capability.refresh", title: "EV6 Device (optional)", required: false
-        input "ev9Device", "capability.refresh", title: "EV9 Device (optional)", required: false
-        input "refreshDelay", "number", title: "Vehicle Refresh Delay (seconds)", defaultValue: 2, range: "0..30", description: "Delay before triggering vehicle refresh (allows EVSE state to stabilize)"
     }
     
     section("Logging") {
@@ -240,18 +232,12 @@ def parseStatusResponse(data) {
     // Update HTML status display
     updateStatusHtml()
     
-    // Detect plug/unplug events and trigger vehicle refresh
+    // Log plug/unplug events for Rule Machine triggers
     if (previousVehicleConnected != null && previousVehicleConnected != vehicleConnected) {
         if (vehicleConnected) {
             log.info "🔌 Vehicle PLUGGED IN detected"
-            if (enableAutoRefresh) {
-                runIn(refreshDelay ?: 2, triggerVehicleRefresh)
-            }
         } else {
             log.info "🔌 Vehicle UNPLUGGED detected"
-            if (enableAutoRefresh) {
-                runIn(refreshDelay ?: 2, triggerVehicleRefresh)
-            }
         }
     }
     
@@ -391,18 +377,12 @@ def parse(String description) {
             
             sendEvent(name: "vehicleConnected", value: vehicleConnected.toString())
             
-            // Detect plug/unplug events
+            // Log plug/unplug events for Rule Machine triggers
             if (previousVehicleConnected != null && previousVehicleConnected != vehicleConnected) {
                 if (vehicleConnected) {
                     log.info "🔌 [MQTT] Vehicle PLUGGED IN detected"
-                    if (enableAutoRefresh) {
-                        runIn(refreshDelay ?: 2, triggerVehicleRefresh)
-                    }
                 } else {
                     log.info "🔌 [MQTT] Vehicle UNPLUGGED detected"
-                    if (enableAutoRefresh) {
-                        runIn(refreshDelay ?: 2, triggerVehicleRefresh)
-                    }
                 }
             }
             
@@ -497,32 +477,6 @@ def sendCommand(String command) {
         }
     } catch (Exception e) {
         log.error "Failed to send command: ${e.message}"
-    }
-}
-
-def triggerVehicleRefresh() {
-    log.info "🔄 Triggering vehicle status refresh for configured vehicles..."
-    
-    if (ev6Device) {
-        try {
-            ev6Device.pollVehicle()
-            log.info "✅ Triggered pollVehicle for EV6"
-        } catch (Exception e) {
-            log.error "Failed to trigger EV6 refresh: ${e.message}"
-        }
-    }
-    
-    if (ev9Device) {
-        try {
-            ev9Device.pollVehicle()
-            log.info "✅ Triggered pollVehicle for EV9"
-        } catch (Exception e) {
-            log.error "Failed to trigger EV9 refresh: ${e.message}"
-        }
-    }
-    
-    if (!ev6Device && !ev9Device) {
-        log.warn "No vehicles configured for auto-refresh"
     }
 }
 
