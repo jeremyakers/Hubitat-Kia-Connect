@@ -189,7 +189,8 @@ def longTermPoll() {
     log.info "🕒 Long-term polling for ${device.label} (preserves 12V battery)"
     
     try {
-        parent.getVehicleStatus(device)
+        // Poll the vehicle directly for fresh data (same as pollVehicle button)
+        parent.refreshVehicleStatus(device, true)
         
         // Schedule next long-term poll if enabled
         if (longTermPollingHours && longTermPollingHours > 0) {
@@ -209,7 +210,8 @@ def chargingPoll() {
     log.info "🔋 Charging poll for ${device.label} (monitoring charge progress)"
     
     try {
-        parent.getVehicleStatus(device)
+        // Poll the vehicle directly for fresh data to check charging progress
+        parent.refreshVehicleStatus(device, true)
         // Note: The charging status check and next poll scheduling happens in updateVehicleStatus()
     } catch (Exception e) {
         log.error "Failed to perform charging poll: ${e.message}"
