@@ -29,7 +29,7 @@ metadata {
         capability "EnergyMeter"
         capability "PowerMeter"
         capability "VoltageMeasurement"
-        capability "CurrentMeasurement"
+        capability "CurrentMeter"
         capability "Refresh"
         capability "Initialize"
         
