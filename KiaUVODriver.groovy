@@ -117,7 +117,7 @@ metadata {
         input name: "refreshDelaySeconds", type: "number", title: "Time to wait after sending command before auto-refresh (seconds)", defaultValue: 5, range: "1..30"
         
         // Climate control settings
-        input name: "useDetailedClimate", type: "bool", title: "Enable heated/cooled seats and steering wheel control", description: "Turn OFF if your vehicle doesn't support seat/steering control via API (e.g., EV6 2022)", defaultValue: false
+        input name: "useDetailedClimate", type: "bool", title: "Enable heated/cooled seat control", description: "Turn OFF if your vehicle doesn't support heated/cooled seats via API (e.g., EV6 2022). Note: Heated steering wheel and defrost work on all vehicles.", defaultValue: false
         input name: "climateTemp", type: "number", title: "Climate temperature (°F)", defaultValue: 72, range: "60..85"
         input name: "climateDuration", type: "number", title: "Climate duration (minutes)", defaultValue: 10, range: "1..30"
         input name: "climateDefrost", type: "bool", title: "Enable defrost", defaultValue: false
