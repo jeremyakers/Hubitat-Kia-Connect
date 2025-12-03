@@ -930,7 +930,7 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
             // After discovery, retry the status request once
             if (!isRetry) {
                 log.info "Vehicle keys refreshed, retrying status request for ${device.label}..."
-                runIn(2, "retryVehicleStatus", [data: [deviceId: device.getId()]])
+                runIn(2, "retryVehicleStatus", [data: [deviceNetworkId: device.deviceNetworkId]])
             }
         } else {
             log.error "Vehicle status failed for ${device.label} with error code: ${reJson.status?.errorCode} - ${reJson.status?.errorMessage}"
@@ -940,11 +940,11 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
 
 def retryVehicleStatus(data) {
     logDebug "Retrying vehicle status after key refresh..."
-    def device = getChildDevice(data.deviceId.toString())
+    def device = getChildDevice(data.deviceNetworkId)
     if (device) {
         getVehicleStatus(device, true) // Mark as retry to prevent infinite loops
     } else {
-        log.error "Could not find device with ID: ${data.deviceId}"
+        log.error "Could not find device with network ID: ${data.deviceNetworkId}"
     }
 }
 
