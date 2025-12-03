@@ -206,17 +206,22 @@ def createSteeringWheelControl(dni) {
         try {
             child = addChildDevice("hubitat", "Virtual Fan Controller", dni,
                 [name: "Virtual Fan Controller", label: "${device.label} - Heated Steering Wheel", isComponent: false])
-            
-            // Set supported speeds based on vehicle model
-            def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
-            def supportedSpeeds = (modelYear >= 2024) ? ["off", "low", "high"] : ["off", "on"]
-            child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
             child.setSpeed("off")
-            log.info "Created steering wheel control with speeds: ${supportedSpeeds}"
+            log.info "Created steering wheel control"
         } catch (Exception e) {
             log.error "Failed to create steering wheel control: ${e.message}"
+            return null
         }
     }
+    
+    // Set supported speeds based on vehicle model (do this every time to ensure it's set)
+    if (child) {
+        def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
+        def supportedSpeeds = (modelYear >= 2024) ? ["off", "low", "high"] : ["off", "on"]
+        child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
+        log.debug "Set steering wheel supported speeds: ${supportedSpeeds} (model year: ${modelYear})"
+    }
+    
     return child
 }
 
@@ -226,19 +231,24 @@ def createSeatControl(dni, label, supportsCooling) {
         try {
             child = addChildDevice("kia-uvo", "Kia Climate Seat Control", dni,
                 [name: "Kia Climate Seat Control", label: "${device.label} - ${label}", isComponent: false])
-            
-            // Set supported modes and speeds
-            def supportedModes = supportsCooling ? ["off", "heat", "cool"] : ["off", "heat"]
-            def supportedSpeeds = ["low", "medium", "high"]
-            
-            child.sendEvent(name: "supportedThermostatModes", value: supportedModes)
-            child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
             child.off()
-            log.info "Created seat control: ${label} (cooling: ${supportsCooling})"
+            log.info "Created seat control: ${label}"
         } catch (Exception e) {
             log.error "Failed to create seat control ${label}: ${e.message}"
+            return null
         }
     }
+    
+    // Set supported modes and speeds (do this every time to ensure they're set)
+    if (child) {
+        def supportedModes = supportsCooling ? ["off", "heat", "cool"] : ["off", "heat"]
+        def supportedSpeeds = ["low", "medium", "high"]
+        
+        child.sendEvent(name: "supportedThermostatModes", value: supportedModes)
+        child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
+        log.debug "Set ${label} supported modes: ${supportedModes}, speeds: ${supportedSpeeds}"
+    }
+    
     return child
 }
 
