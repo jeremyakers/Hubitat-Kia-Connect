@@ -1,0 +1,70 @@
+/* 
+ * Kia UVO Connect Dashboard CSS
+ * 
+ * Instructions:
+ * 1. Open your Hubitat dashboard
+ * 2. Click the gear icon (⚙️) in the top right
+ * 3. Click "Advanced" tab
+ * 4. Paste this CSS into the "CSS" field
+ * 5. Click "Save CSS"
+ * 
+ * This CSS styles the HTML content in the vehicle status tiles
+ * (vehicleInfoHtml, batteryHtml, chargingHtml, doorsSecurityHtml, locationHtml attributes)
+ */
+
+/* Container for all Kia status displays */
+.kia-status {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+/* Headers */
+.kia-status h3 {
+    color: #1f77b4;
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+/* Tables */
+.kia-status table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* Label cells (left column - bold) */
+.kia-status td.kia-label {
+    padding: 2px 4px;
+    font-weight: bold;
+}
+
+/* Value cells (right column - normal) */
+.kia-status td {
+    padding: 2px 4px;
+}
+
+/* Links (for GPS coordinates) */
+.kia-status a.kia-link {
+    color: #1f77b4;
+    text-decoration: none;
+}
+
+.kia-status a.kia-link:hover {
+    text-decoration: underline;
+}
+
+/* Home status (green) */
+.kia-status .kia-home {
+    color: #28a745;
+}
+
+/* Away status (gray) */
+.kia-status .kia-away {
+    color: #6c757d;
+}
+
+/* Paragraphs */
+.kia-status p {
+    padding: 5px;
+    margin: 0;
+}
+
