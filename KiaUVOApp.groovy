@@ -688,6 +688,9 @@ def handleVehicleStatusResponse(response, device, isRetry = false) {
         def vehicleInfo = reJson.payload?.vehicleInfoList?.get(0)?.lastVehicleInfo
         def vehicleConfig = reJson.payload?.vehicleInfoList?.get(0)?.vehicleConfig?.vehicleDetail
         
+        // Debug: Log seat heat/cool capability info
+        logDebug "Vehicle config seatHeatCoolOption: ${vehicleConfig?.seatHeatCoolOption}"
+        
         if (vehicleInfo && vehicleConfig) {
             logDebug "Parsing vehicle status data for ${device.label}"
             
