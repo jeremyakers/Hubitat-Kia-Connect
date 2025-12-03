@@ -1752,7 +1752,7 @@ def retryVehicleStatusRefresh(data) {
     log.info "Retrying vehicle status refresh with fresh vehicle keys..."
     def device = getChildDevice(data.deviceNetworkId)
     if (device) {
-        refreshVehicleStatus(device, true)
+        refreshVehicleStatus(device, true)  // Pass isRetry=true to prevent infinite loop
     } else {
         log.error "Device not found for retry: ${data.deviceNetworkId}"
     }
