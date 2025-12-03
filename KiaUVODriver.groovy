@@ -25,7 +25,6 @@ metadata {
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
-        capability "Thermostat"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -77,6 +76,9 @@ metadata {
         attribute "AirTemp", "number"
         attribute "OutsideTemp", "string"
         attribute "AirControl", "string"
+        
+        // Climate Control (temperature setpoint for configuration)
+        attribute "thermostatSetpoint", "number"
 
         // Technical
         attribute "vehicleKey", "string"
@@ -90,17 +92,18 @@ metadata {
         attribute "mqttBatteryPublish", "string"
 
         // Commands
-                command "refresh"
+        command "refresh"
         command "pollVehicle"
         command "Lock"
         command "Unlock" 
         command "StartClimate"
         command "StopClimate"
+        command "setThermostatSetpoint", [[name: "temperature", type: "NUMBER"]]
         command "GetLocation"
-            command "HornAndLights"
-    command "StopHornAndLights"
-    command "StartCharge"
-    command "StopCharge"
+        command "HornAndLights"
+        command "StopHornAndLights"
+        command "StartCharge"
+        command "StopCharge"
         command "updateVehicleStatus", [[name: "statusData", type: "JSON_OBJECT"]]
         command "updateLocation", [[name: "latitude", type: "STRING"], [name: "longitude", type: "STRING"]]
     }
@@ -292,18 +295,6 @@ def initialize() {
     
     // Create climate child devices
     createClimateChildDevices()
-    
-    // Set supported thermostat modes (Kia only supports auto and off)
-    sendEvent(name: "supportedThermostatModes", value: ["auto", "off"])
-    sendEvent(name: "supportedThermostatFanModes", value: ["auto"])
-    
-    // Initialize thermostat mode to off
-    if (!device.currentValue("thermostatMode")) {
-        sendEvent(name: "thermostatMode", value: "off")
-    }
-    if (!device.currentValue("thermostatFanMode")) {
-        sendEvent(name: "thermostatFanMode", value: "auto")
-    }
     
     // Schedule long-term polling if enabled
     if (longTermPollingHours && longTermPollingHours > 0) {
@@ -515,98 +506,15 @@ def unlock() {
     Unlock()
 }
 
-// ThermostatSetpoint capability command (for climate temperature control)
+// Temperature setpoint command (for climate temperature configuration)
 def setThermostatSetpoint(temperature) {
     log.info "Setting climate temperature to ${temperature}°F for ${device.label}"
     
     // Update the climate temperature setting
     device.updateSetting("climateTemp", temperature as Integer)
     
-    // If climate is currently on, restart it with new temperature
-    def currentSwitch = device.currentValue("switch")
-    if (currentSwitch == "on") {
-        log.info "Climate is on, restarting with new temperature: ${temperature}°F"
-        StartClimate()
-    }
-    
-    // Update the thermostat setpoint attributes
+    // Update the thermostat setpoint attribute
     sendEvent(name: "thermostatSetpoint", value: temperature)
-    sendEvent(name: "coolingSetpoint", value: temperature)
-    sendEvent(name: "heatingSetpoint", value: temperature)
-}
-
-// ThermostatCoolingSetpoint capability command
-def setCoolingSetpoint(temperature) {
-    log.info "Setting cooling setpoint to ${temperature}°F (delegates to setThermostatSetpoint)"
-    setThermostatSetpoint(temperature)
-}
-
-// ThermostatHeatingSetpoint capability command
-def setHeatingSetpoint(temperature) {
-    log.info "Setting heating setpoint to ${temperature}°F (delegates to setThermostatSetpoint)"
-    setThermostatSetpoint(temperature)
-}
-
-// Thermostat capability commands for mode control
-def auto() {
-    log.info "Thermostat auto mode selected - starting climate control"
-    sendEvent(name: "thermostatMode", value: "auto")
-    StartClimate()
-}
-
-def off() {
-    log.info "Thermostat off mode selected - stopping climate control"
-    sendEvent(name: "thermostatMode", value: "off")
-    StopClimate()
-}
-
-def cool() {
-    log.warn "Cool mode not supported - Kia only supports auto and off. Starting climate in auto mode."
-    auto()
-}
-
-def heat() {
-    log.warn "Heat mode not supported - Kia only supports auto and off. Starting climate in auto mode."
-    auto()
-}
-
-def emergencyHeat() {
-    log.warn "Emergency heat not supported - Kia only supports auto and off. Starting climate in auto mode."
-    auto()
-}
-
-def setThermostatMode(mode) {
-    log.info "Setting thermostat mode to ${mode}"
-    
-    if (mode == "off") {
-        off()
-    } else if (mode == "auto") {
-        auto()
-    } else {
-        log.warn "Unsupported mode ${mode} - Kia only supports auto and off. Defaulting to auto."
-        auto()
-    }
-}
-
-// Thermostat capability commands for fan control
-def fanAuto() {
-    log.info "Fan auto mode selected (Kia only supports auto fan)"
-    sendEvent(name: "thermostatFanMode", value: "auto")
-}
-
-def fanOn() {
-    log.info "Fan on mode selected (Kia only supports auto fan)"
-    sendEvent(name: "thermostatFanMode", value: "auto")
-}
-
-def fanCirculate() {
-    log.info "Fan circulate mode selected (Kia only supports auto fan)"
-    sendEvent(name: "thermostatFanMode", value: "auto")
-}
-
-def setThermostatFanMode(fanMode) {
-    log.info "Setting thermostat fan mode to ${fanMode} (Kia only supports auto)"
-    sendEvent(name: "thermostatFanMode", value: "auto")
 }
 
 // ====================
@@ -660,23 +568,17 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'battery', value: value.toString())
                     }
                     else if (key == "AirControl") {
-                        // Map climate control status to Switch capability and Thermostat mode
+                        // Map climate control status to Switch capability
                         def switchValue = value.toString().toLowerCase().contains("on") || 
                                          value.toString().toLowerCase().contains("running") || 
                                          value.toString().toLowerCase().contains("active") ? "on" : "off"
                         sendEvent(name: 'switch', value: switchValue)
-                        
-                        // Update thermostat mode based on climate control status
-                        def thermostatMode = switchValue == "on" ? "auto" : "off"
-                        sendEvent(name: 'thermostatMode', value: thermostatMode)
                     }
                     else if (key == "AirTemp") {
-                        // Map air temperature to thermostat setpoint attributes (value is already numeric)
+                        // Map air temperature to thermostat setpoint attribute (value is already numeric)
                         def numValue = value.toString().isNumber() ? value.toString() as Double : null
                         if (numValue != null) {
                             sendEvent(name: 'thermostatSetpoint', value: numValue)
-                            sendEvent(name: 'coolingSetpoint', value: numValue)
-                            sendEvent(name: 'heatingSetpoint', value: numValue)
                         }
                     }
                     else if (key == "DoorLocks") {
