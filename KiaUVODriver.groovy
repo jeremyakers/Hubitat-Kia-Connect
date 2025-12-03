@@ -80,7 +80,11 @@ metadata {
 
         // Technical
         attribute "vehicleKey", "string"
-        attribute "statusHtml", "string"
+        // HTML Status Display (split into sections for dashboard tile 1024 char limit)
+        attribute "vehicleInfoHtml", "string"
+        attribute "batteryChargingHtml", "string"
+        attribute "doorsSecurityHtml", "string"
+        attribute "locationHtml", "string"
         attribute "error", "string"
         attribute "mqttBatteryPublish", "string"
 
@@ -464,23 +468,32 @@ def handleSmartPolling(chargingStatus = null) {
 }
 
 def updateStatusHtml(Map statusData) {
-    def html = """
+    def deviceName = device.getDisplayName()
+    
+    // ============================================================================
+    // Vehicle Info HTML
+    // ============================================================================
+    def vehicleInfoHtml = """
     <div style="font-family: Arial, sans-serif; font-size: 14px;">
-        <h3 style="color: #1f77b4; margin-bottom: 10px;">${device.getDisplayName()}</h3>
+        <h3 style="color: #1f77b4; margin-bottom: 10px;">${deviceName}</h3>
         <table style="width: 100%; border-collapse: collapse;">
             <tr><td style="padding: 2px; font-weight: bold;">Model:</td><td style="padding: 2px;">${device.currentValue("Model")} ${device.currentValue("ModelYear")}</td></tr>
             <tr><td style="padding: 2px; font-weight: bold;">Odometer:</td><td style="padding: 2px;">${device.currentValue("Odometer")} miles</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Doors:</td><td style="padding: 2px;">${device.currentValue("DoorLocks")}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Engine:</td><td style="padding: 2px;">${device.currentValue("Engine")}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Air Control:</td><td style="padding: 2px;">${device.currentValue("AirControl") ?: "Unknown"}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Last Update:</td><td style="padding: 2px;">${device.currentValue("LastRefreshTime")}</td></tr>
+        </table>
+    </div>
     """
+    sendEvent(name: "vehicleInfoHtml", value: vehicleInfoHtml)
     
-    // Add EV-specific info if it's an EV
+    // ============================================================================
+    // Battery & Charging HTML (EV only)
+    // ============================================================================
     if (device.currentValue("isEV") == "true") {
         def batterySoC = device.currentValue("BatterySoC") ?: "Unknown"
         def evRange = device.currentValue("EVRange") ?: "Unknown"
         def chargingStatus = device.currentValue("ChargingStatus") ?: "Unknown"
-        def chargingPower = device.currentValue("ChargingPower") ?: "Not Available"
+        def chargingPower = device.currentValue("ChargingPower")
+        def chargingPowerDisplay = chargingPower ? "${chargingPower} kW" : "Not Available"
         def plugStatus = device.currentValue("PlugStatus") ?: "Unknown"
         def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
@@ -509,77 +522,129 @@ def updateStatusHtml(Map statusData) {
             }
         }
         
-        html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Main Battery:</td><td style="padding: 2px;">${batterySoC}%</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">EV Range:</td><td style="padding: 2px;">${evRange} miles</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Charging:</td><td style="padding: 2px;">${chargingStatus}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Charging Power:</td><td style="padding: 2px;">${chargingPower}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Charge Time Remaining:</td><td style="padding: 2px;">${chargeTimeRemaining}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Estimated Completion:</td><td style="padding: 2px;">${estimatedCompletionTime}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Plug Status:</td><td style="padding: 2px;">${plugStatus}</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">12V Aux Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+        def batteryChargingHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">🔋 Battery & Charging</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Main Battery:</td><td style="padding: 2px;">${batterySoC}%</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">EV Range:</td><td style="padding: 2px;">${evRange} miles</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Charging:</td><td style="padding: 2px;">${chargingStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Charging Power:</td><td style="padding: 2px;">${chargingPowerDisplay}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Time Remaining:</td><td style="padding: 2px;">${chargeTimeRemaining}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Est. Completion:</td><td style="padding: 2px;">${estimatedCompletionTime}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Plug Status:</td><td style="padding: 2px;">${plugStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">12V Aux Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+            </table>
+        </div>
         """
+        sendEvent(name: "batteryChargingHtml", value: batteryChargingHtml)
     } else {
+        // For non-EV vehicles, show fuel info
         def fuelLevel = device.currentValue("FuelLevel") ?: "Unknown"
         def fuelRange = device.currentValue("FuelRange") ?: "Unknown"
         def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
-        html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Fuel:</td><td style="padding: 2px;">${fuelLevel}%</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">Range:</td><td style="padding: 2px;">${fuelRange} miles</td></tr>
-            <tr><td style="padding: 2px; font-weight: bold;">12V Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+        def batteryChargingHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">⛽ Fuel</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Fuel:</td><td style="padding: 2px;">${fuelLevel}%</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Range:</td><td style="padding: 2px;">${fuelRange} miles</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">12V Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+            </table>
+        </div>
         """
+        sendEvent(name: "batteryChargingHtml", value: batteryChargingHtml)
     }
     
-    // Add location info if available
+    // ============================================================================
+    // Doors & Security HTML
+    // ============================================================================
+    def doorLocks = device.currentValue("DoorLocks") ?: "Unknown"
+    def engine = device.currentValue("Engine") ?: "Unknown"
+    def airControl = device.currentValue("AirControl") ?: "Unknown"
+    def hood = device.currentValue("Hood") ?: "Unknown"
+    def trunk = device.currentValue("Trunk") ?: "Unknown"
+    def windows = device.currentValue("Windows") ?: "Unknown"
+    def frontLeftDoor = device.currentValue("FrontLeftDoor") ?: "Unknown"
+    def frontRightDoor = device.currentValue("FrontRightDoor") ?: "Unknown"
+    def backLeftDoor = device.currentValue("BackLeftDoor") ?: "Unknown"
+    def backRightDoor = device.currentValue("BackRightDoor") ?: "Unknown"
+    
+    def doorsSecurityHtml = """
+    <div style="font-family: Arial, sans-serif; font-size: 14px;">
+        <h3 style="color: #1f77b4; margin-bottom: 10px;">🚗 Doors & Security</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 2px; font-weight: bold;">Door Locks:</td><td style="padding: 2px;">${doorLocks}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Front Left:</td><td style="padding: 2px;">${frontLeftDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Front Right:</td><td style="padding: 2px;">${frontRightDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Back Left:</td><td style="padding: 2px;">${backLeftDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Back Right:</td><td style="padding: 2px;">${backRightDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Hood:</td><td style="padding: 2px;">${hood}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Trunk:</td><td style="padding: 2px;">${trunk}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Windows:</td><td style="padding: 2px;">${windows}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Engine:</td><td style="padding: 2px;">${engine}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Air Control:</td><td style="padding: 2px;">${airControl}</td></tr>
+        </table>
+    </div>
+    """
+    sendEvent(name: "doorsSecurityHtml", value: doorsSecurityHtml)
+    
+    // ============================================================================
+    // Location HTML
+    // ============================================================================
     def latitude = device.currentValue("Latitude")
     def longitude = device.currentValue("Longitude")
     def googleMapsUrl = device.currentValue("GoogleMapsURL")
+    
     if (latitude && longitude && googleMapsUrl) {
-        html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Location:</td><td style="padding: 2px;"><a href="${googleMapsUrl}" target="_blank" style="color: #1f77b4; text-decoration: none;">${latitude}, ${longitude}</a></td></tr>
-        """
-        
-        // Add home status
         def isHome = device.currentValue("isHome")
-        if (isHome && isHome != "Unknown") {
-            def homeIcon = isHome == "true" ? "🏠" : "🚗"
-            def homeStatus = isHome == "true" ? "At Home" : "Away"
-            def homeColor = isHome == "true" ? "#28a745" : "#6c757d"
-            html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Home Status:</td><td style="padding: 2px; color: ${homeColor};">${homeIcon} ${homeStatus}</td></tr>
-            """
-        }
+        def homeIcon = isHome == "true" ? "🏠" : "🚗"
+        def homeStatus = isHome == "true" ? "At Home" : "Away"
+        def homeColor = isHome == "true" ? "#28a745" : "#6c757d"
         
-        // Add additional location details if available
         def speed = device.currentValue("Speed")
         def heading = device.currentValue("Heading")
         def altitude = device.currentValue("Altitude")
         
-        if (speed && speed != "null") {
-            html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Speed:</td><td style="padding: 2px;">${speed}</td></tr>
+        def locationHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">📍 Location</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Coordinates:</td><td style="padding: 2px;"><a href="${googleMapsUrl}" target="_blank" style="color: #1f77b4; text-decoration: none;">${latitude}, ${longitude}</a></td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Status:</td><td style="padding: 2px; color: ${homeColor};">${homeIcon} ${homeStatus}</td></tr>
+        """
+        
+        if (speed && speed != "null" && speed != 0) {
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Speed:</td><td style="padding: 2px;">${speed} mph</td></tr>
             """
         }
         if (heading && heading != "null") {
-            html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Heading:</td><td style="padding: 2px;">${heading}°</td></tr>
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Heading:</td><td style="padding: 2px;">${heading}°</td></tr>
             """
         }
         if (altitude && altitude != "null") {
-            html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Altitude:</td><td style="padding: 2px;">${altitude}</td></tr>
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Altitude:</td><td style="padding: 2px;">${altitude} m</td></tr>
             """
         }
+        
+        locationHtml += """
+            </table>
+        </div>
+        """
+        sendEvent(name: "locationHtml", value: locationHtml)
+    } else {
+        def locationHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">📍 Location</h3>
+            <p style="padding: 5px;">Location data not available</p>
+        </div>
+        """
+        sendEvent(name: "locationHtml", value: locationHtml)
     }
-    
-    html += """
-            <tr><td style="padding: 2px; font-weight: bold;">Last Update:</td><td style="padding: 2px;">${device.currentValue("LastRefreshTime")}</td></tr>
-        </table>
-    </div>
-    """
-    
-    sendEvent(name: "statusHtml", value: html)
 }
 
 def updateLocation(latitude, longitude) {
