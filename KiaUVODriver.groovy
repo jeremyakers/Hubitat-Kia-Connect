@@ -255,12 +255,12 @@ def Unlock() {
 def StartClimate() {
     def temp = climateTemp ?: 72
     log.info "Starting climate control for ${device.label} at ${temp}°F..."
-    parent.sendVehicleCommand(device, "climate_start", [temperature: temp])
+    parent.sendVehicleCommand(device, "start", [temperature: temp])
 }
 
 def StopClimate() {
     log.info "Stopping climate control for ${device.label}..."
-    parent.sendVehicleCommand(device, "climate_stop")
+    parent.sendVehicleCommand(device, "stop")
 }
 
 def HornAndLights() {
