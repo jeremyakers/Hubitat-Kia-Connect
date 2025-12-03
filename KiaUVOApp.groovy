@@ -667,7 +667,7 @@ def getVehicleStatus(device, isRetry = false) {
             // After discovery, retry the status request once
             if (!isRetry) {
                 log.info "Vehicle keys refreshed, retrying status request for ${device.label}..."
-                runIn(2, "retryVehicleStatus", [data: [deviceId: device.getId()]])
+                runIn(2, "retryVehicleStatus", [data: [deviceNetworkId: device.deviceNetworkId]])
             }
         } else {
             log.error "Vehicle status request failed for ${device.label} with error: ${e.message}"
