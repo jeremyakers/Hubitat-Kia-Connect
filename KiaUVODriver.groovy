@@ -154,14 +154,134 @@ def updated() {
         log.info "Disconnected from MQTT broker for reconfiguration"
     }
     
+    // Create/update child devices based on current preferences
+    createClimateChildDevices()
+    
     initialize()
 }
+
+// ====================
+// CHILD DEVICE MANAGEMENT
+// ====================
+
+def createClimateChildDevices() {
+    def vehicleId = device.deviceNetworkId
+    
+    // Always create defrost and steering controls
+    createChildSwitch("${vehicleId}-defrost-front", "Front Defrost")
+    createChildSwitch("${vehicleId}-defrost-rear", "Rear Defrost")
+    createSteeringWheelControl("${vehicleId}-steering")
+    
+    // Create seat controls only if detailed climate is enabled
+    def hasSeats = device.getSetting("useDetailedClimate")
+    if (hasSeats) {
+        createSeatControl("${vehicleId}-seat-driver", "Driver Seat", true)
+        createSeatControl("${vehicleId}-seat-passenger", "Passenger Seat", true)
+        createSeatControl("${vehicleId}-seat-rear-left", "Rear Left Seat", false)
+        createSeatControl("${vehicleId}-seat-rear-right", "Rear Right Seat", false)
+    } else {
+        // Remove seat controls if detailed climate disabled
+        removeSeatControls()
+    }
+}
+
+def createChildSwitch(dni, label) {
+    def child = getChildDevice(dni)
+    if (!child) {
+        try {
+            child = addChildDevice("hubitat", "Virtual Switch", dni, 
+                [name: "Virtual Switch", label: "${device.label} - ${label}", isComponent: false])
+            child.off()
+            log.info "Created child device: ${label}"
+        } catch (Exception e) {
+            log.error "Failed to create child device ${label}: ${e.message}"
+        }
+    }
+    return child
+}
+
+def createSteeringWheelControl(dni) {
+    def child = getChildDevice(dni)
+    if (!child) {
+        try {
+            child = addChildDevice("hubitat", "Virtual Fan Controller", dni,
+                [name: "Virtual Fan Controller", label: "${device.label} - Heated Steering Wheel", isComponent: false])
+            
+            // Set supported speeds based on vehicle model
+            def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
+            def supportedSpeeds = (modelYear >= 2024) ? ["off", "low", "high"] : ["off", "on"]
+            child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
+            child.setSpeed("off")
+            log.info "Created steering wheel control with speeds: ${supportedSpeeds}"
+        } catch (Exception e) {
+            log.error "Failed to create steering wheel control: ${e.message}"
+        }
+    }
+    return child
+}
+
+def createSeatControl(dni, label, supportsCooling) {
+    def child = getChildDevice(dni)
+    if (!child) {
+        try {
+            child = addChildDevice("kia-uvo", "Kia Climate Seat Control", dni,
+                [name: "Kia Climate Seat Control", label: "${device.label} - ${label}", isComponent: false])
+            
+            // Set supported modes and speeds
+            def supportedModes = supportsCooling ? ["off", "heat", "cool"] : ["off", "heat"]
+            def supportedSpeeds = ["low", "medium", "high"]
+            
+            child.sendEvent(name: "supportedThermostatModes", value: supportedModes)
+            child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
+            child.off()
+            log.info "Created seat control: ${label} (cooling: ${supportsCooling})"
+        } catch (Exception e) {
+            log.error "Failed to create seat control ${label}: ${e.message}"
+        }
+    }
+    return child
+}
+
+def removeSeatControls() {
+    def vehicleId = device.deviceNetworkId
+    def seatDnis = [
+        "${vehicleId}-seat-driver",
+        "${vehicleId}-seat-passenger", 
+        "${vehicleId}-seat-rear-left",
+        "${vehicleId}-seat-rear-right"
+    ]
+    
+    seatDnis.each { dni ->
+        def child = getChildDevice(dni)
+        if (child) {
+            deleteChildDevice(dni)
+            log.info "Removed seat control: ${child.label}"
+        }
+    }
+}
+
+def removeAllClimateChildDevices() {
+    def children = getChildDevices()
+    children.each { child ->
+        if (child.deviceNetworkId.startsWith(device.deviceNetworkId + "-")) {
+            deleteChildDevice(child.deviceNetworkId)
+            log.info "Removed child device: ${child.label}"
+        }
+    }
+}
+
+// ====================
+// INITIALIZATION
+// ====================
 
 def initialize() {
     log.info "Initializing Kia UVO Vehicle Driver for ${device.label}"
     
     // Clear all existing schedules
     unschedule()
+    
+    // Create climate child devices
+    createClimateChildDevices()
     
     // Set supported thermostat modes (Kia only supports auto and off)
     sendEvent(name: "supportedThermostatModes", value: ["auto", "off"])
@@ -274,8 +394,64 @@ def Unlock() {
 }
 
 def StartClimate() {
-    log.info "Starting climate control for ${device.label}"
-    parent.sendVehicleCommand(device, "start")
+    def temp = device.currentValue("thermostatSetpoint") ?: device.getSetting("climateTemp") ?: 72
+    def duration = device.getSetting("climateDuration") ?: 10
+    def vehicleId = device.deviceNetworkId
+    
+    // Read defrost switches
+    def frontDefrost = getChildDevice("${vehicleId}-defrost-front")?.currentValue("switch") == "on"
+    def rearDefrost = getChildDevice("${vehicleId}-defrost-rear")?.currentValue("switch") == "on"
+    def defrost = frontDefrost || rearDefrost
+    
+    // Read steering wheel fan speed
+    def steeringChild = getChildDevice("${vehicleId}-steering")
+    def steeringSpeed = steeringChild?.currentValue("speed") ?: "off"
+    def heatedSteering = convertFanSpeedToLevel(steeringSpeed)
+    
+    // Build seat settings from child devices
+    def seatSettings = [:]
+    if (device.getSetting("useDetailedClimate")) {
+        seatSettings.driver = getSeatSettingFromChild("${vehicleId}-seat-driver")
+        seatSettings.passenger = getSeatSettingFromChild("${vehicleId}-seat-passenger")
+        seatSettings.rearLeft = getSeatSettingFromChild("${vehicleId}-seat-rear-left")
+        seatSettings.rearRight = getSeatSettingFromChild("${vehicleId}-seat-rear-right")
+    }
+    
+    log.info "Starting climate: ${temp}°F, ${duration}min, defrost:${defrost}, steering:${heatedSteering}"
+    log.debug "Seat settings: ${seatSettings}"
+    
+    parent.sendVehicleCommand(device, "start", [
+        temperature: temp,
+        duration: duration,
+        defrost: defrost,
+        heatedSteering: heatedSteering,
+        seats: seatSettings
+    ])
+}
+
+def convertFanSpeedToLevel(speed) {
+    switch(speed) {
+        case "off": return "off"
+        case "on": return "on"
+        case "low": return "low"
+        case "medium": return "medium"
+        case "high": return "high"
+        default: return "off"
+    }
+}
+
+def getSeatSettingFromChild(dni) {
+    def child = getChildDevice(dni)
+    if (!child) return [mode: "off", level: "off"]
+    
+    def mode = child.currentValue("thermostatMode") ?: "off"
+    def speed = child.currentValue("speed") ?: "off"
+    
+    if (mode == "off" || speed == "off") {
+        return [mode: "off", level: "off"]
+    }
+    
+    return [mode: mode, level: speed]
 }
 
 def StopClimate() {
