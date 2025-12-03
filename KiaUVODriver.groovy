@@ -26,6 +26,8 @@ metadata {
         capability "PresenceSensor"
         capability "ContactSensor"
         capability "ThermostatSetpoint"
+        capability "ThermostatCoolingSetpoint"
+        capability "ThermostatHeatingSetpoint"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -331,8 +333,22 @@ def setThermostatSetpoint(temperature) {
         StartClimate()
     }
     
-    // Update the thermostat setpoint attribute
+    // Update the thermostat setpoint attributes
     sendEvent(name: "thermostatSetpoint", value: temperature)
+    sendEvent(name: "coolingSetpoint", value: temperature)
+    sendEvent(name: "heatingSetpoint", value: temperature)
+}
+
+// ThermostatCoolingSetpoint capability command
+def setCoolingSetpoint(temperature) {
+    log.info "Setting cooling setpoint to ${temperature}°F (delegates to setThermostatSetpoint)"
+    setThermostatSetpoint(temperature)
+}
+
+// ThermostatHeatingSetpoint capability command
+def setHeatingSetpoint(temperature) {
+    log.info "Setting heating setpoint to ${temperature}°F (delegates to setThermostatSetpoint)"
+    setThermostatSetpoint(temperature)
 }
 
 // ====================
