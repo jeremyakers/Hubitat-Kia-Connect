@@ -1437,39 +1437,24 @@ def sendVehicleCommand(device, command, isRetry = false) {
             successMessage = "Vehicle unlocked successfully"
             break
         case "start":
-            // Climate start command using device preferences
             endpoint = CLIMATE_START_ENDPOINT
             method = "POST"
-            timeout = 30  // Climate start commands may take longer
+            timeout = 30
             
-            // Get device preferences with defaults
-            def temp = device.getSetting("climateTemp") ?: 72
-            def duration = device.getSetting("climateDuration") ?: 10
-            def defrost = device.getSetting("climateDefrost") ?: false
-            def heatedSteering = device.getSetting("climateHeatedSteering") ?: false
-            def heatedSeats = device.getSetting("climateHeatedSeats") ?: false
-            def cooledSeats = device.getSetting("climateCooledSeats") ?: false
-            def useDetailed = device.getSetting("useDetailedClimate") ?: false
+            def options = commandOptions ?: [:]
+            def temp = options.temperature ?: device.getSetting("climateTemp") ?: 72
+            def duration = options.duration ?: device.getSetting("climateDuration") ?: 10
+            def defrost = options.defrost != null ? options.defrost : (device.getSetting("climateDefrost") ?: false)
+            def heatedSteering = options.heatedSteering ?: "off"
+            def seatSettings = options.seats ?: [:]
             
-            // Choose API format based on device preference
-            if (useDetailed) {
-                // Complex format with all user preferences
-                jsonBody = buildClimateRequestBody(temp, duration, defrost, heatedSteering, heatedSeats, cooledSeats)
-                logDebug "🌡️ Using detailed climate API format with all accessories"
-            } else {
-                // Simple format with just basic temperature and duration (no accessories)
-                jsonBody = buildClimateRequestBody(temp, duration, defrost, false, false, false)
-                logDebug "🌡️ Using basic climate API format (temp/duration only)"
-            }
+            jsonBody = buildClimateRequestBody(temp, duration, defrost, heatedSteering, seatSettings)
             
-            successMessage = "Climate start requested (${temp}°F, ${duration} min)"
-            if (defrost) successMessage += " with defrost"
-            if (heatedSteering) successMessage += " + heated steering"
-            if (heatedSeats) successMessage += " + heated seats"
-            if (cooledSeats) successMessage += " + cooled seats"
-            successMessage += useDetailed ? " [detailed]" : " [basic]"
+            successMessage = "Climate start requested (${temp}°F, ${duration}min)"
+            if (defrost) successMessage += " + defrost"
+            if (heatedSteering != "off") successMessage += " + steering (${heatedSteering})"
             
-            logDebug "🌡️ Climate settings: ${temp}°F, ${duration}min, defrost:${defrost}, steering:${heatedSteering}, heated seats:${heatedSeats}, cooled seats:${cooledSeats}"
+            logDebug "Climate: temp=${temp}, duration=${duration}, defrost=${defrost}, steering=${heatedSteering}, seats=${seatSettings}"
             break
         case "stop":
             endpoint = CLIMATE_STOP_ENDPOINT
@@ -1761,28 +1746,27 @@ def retryVehicleStatusRefresh(data) {
     }
 }
 
-def buildClimateRequestBody(temp, duration, defrost, heatedSteering, heatedSeats, cooledSeats) {
-    // Build climate control request body using exact format from Python library
+def buildClimateRequestBody(temp, duration, defrost, heatedSteering, seatSettings) {
     def json = '{'
     json += '"remoteClimate": {'
     json += '"airTemp": {"unit": 1, "value": "' + temp + '"},'
     json += '"airCtrl": true,'
     json += '"defrost": ' + defrost + ','
     json += '"heatingAccessory": {'
-    json += '"rearWindow": 0,'  // Rear window defrost
-    json += '"sideMirror": 0,'  // Side mirror heating  
-    json += '"steeringWheel": ' + (heatedSteering ? '1' : '0') + ','
-    json += '"steeringWheelStep": ' + (heatedSteering ? '1' : '0')
+    json += '"rearWindow": 0,'
+    json += '"sideMirror": 0,'
+    json += '"steeringWheel": ' + getSteeringWheelValue(heatedSteering) + ','
+    json += '"steeringWheelStep": ' + getSteeringWheelStep(heatedSteering)
     json += '},'
     json += '"ignitionOnDuration": {"unit": 4, "value": ' + duration + '}'
     
-    // Add seat heating/cooling if enabled (using empirical values from Python library)
-    if (heatedSeats || cooledSeats) {
+    // Add seat settings if any are active
+    if (hasActiveSeat(seatSettings)) {
         json += ', "heatVentSeat": {'
-        json += '"driverSeat": ' + getSeatSettings(heatedSeats, cooledSeats) + ','
-        json += '"passengerSeat": ' + getSeatSettings(heatedSeats, cooledSeats) + ','
-        json += '"rearLeftSeat": {"heatVentType": 0, "heatVentLevel": 1, "heatVentStep": 0},'
-        json += '"rearRightSeat": {"heatVentType": 0, "heatVentLevel": 1, "heatVentStep": 0}'
+        json += '"driverSeat": ' + buildSeatJson(seatSettings.driver) + ','
+        json += '"passengerSeat": ' + buildSeatJson(seatSettings.passenger) + ','
+        json += '"rearLeftSeat": ' + buildSeatJson(seatSettings.rearLeft) + ','
+        json += '"rearRightSeat": ' + buildSeatJson(seatSettings.rearRight)
         json += '}'
     }
     
@@ -1790,20 +1774,45 @@ def buildClimateRequestBody(temp, duration, defrost, heatedSteering, heatedSeats
     return json
 }
 
-def getSeatSettings(heatedSeats, cooledSeats) {
-    // Return seat settings based on Python library empirical values
-    if (heatedSeats && cooledSeats) {
-        // If both are enabled, prioritize heating (medium level)
-        return '{"heatVentType": 1, "heatVentLevel": 2, "heatVentStep": 1}'
-    } else if (heatedSeats) {
-        // Medium heat level
-        return '{"heatVentType": 1, "heatVentLevel": 2, "heatVentStep": 1}'
-    } else if (cooledSeats) {
-        // Medium cooling level (type 2 = cooling)
-        return '{"heatVentType": 2, "heatVentLevel": 2, "heatVentStep": 1}'
-    } else {
-        // Off
-        return '{"heatVentType": 0, "heatVentLevel": 1, "heatVentStep": 0}'
+def getSteeringWheelValue(level) {
+    return (level == "off") ? 0 : 1
+}
+
+def getSteeringWheelStep(level) {
+    switch(level) {
+        case "off": return 0
+        case "on": return 1
+        case "low": return 1
+        case "medium": return 2
+        case "high": return 2
+        default: return 0
+    }
+}
+
+def hasActiveSeat(seatSettings) {
+    if (!seatSettings) return false
+    return seatSettings.values().any { seat -> 
+        seat?.mode != "off" && seat?.level != "off"
+    }
+}
+
+def buildSeatJson(seatSetting) {
+    if (!seatSetting || seatSetting.mode == "off" || seatSetting.level == "off") {
+        return '{"heatVentType": 0, "heatVentLevel": 0, "heatVentStep": 0}'
+    }
+    
+    def type = (seatSetting.mode == "heat") ? 1 : 2
+    def level = getSeatLevelValue(seatSetting.level)
+    
+    return "{\"heatVentType\": ${type}, \"heatVentLevel\": ${level}, \"heatVentStep\": ${level}}"
+}
+
+def getSeatLevelValue(level) {
+    switch(level) {
+        case "low": return 1
+        case "medium": return 2
+        case "high": return 3
+        default: return 0
     }
 }
 
