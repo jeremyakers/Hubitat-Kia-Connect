@@ -89,6 +89,10 @@ metadata {
         // Additional Status
         attribute "TotalRange", "string"
         attribute "Defrost", "string"
+        
+        // Technical (required by app)
+        attribute "vehicleKey", "string"
+        attribute "vinKey", "string"
 
         // HTML Status Display (split into sections for dashboard tile 1024 char limit)
         attribute "vehicleInfoHtml", "string"
@@ -108,6 +112,10 @@ metadata {
         command "HornAndLights"
         command "GetLocation"
         command "pollVehicle"  // Force a fresh vehicle status poll (may take 10-30 seconds)
+        
+        // Commands called by app (internal)
+        command "updateVehicleStatus", [[name: "statusData", type: "JSON_OBJECT"]]
+        command "updateLocation", [[name: "latitude", type: "STRING"], [name: "longitude", type: "STRING"]]
     }
 }
 
