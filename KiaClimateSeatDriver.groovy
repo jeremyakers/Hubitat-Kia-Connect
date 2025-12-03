@@ -12,7 +12,8 @@ metadata {
     definition(
         name: "Kia Climate Seat Control",
         namespace: "kia-uvo",
-        author: "Jeremy Akers"
+        author: "Jeremy Akers",
+        importUrl: "https://raw.githubusercontent.com/jeremyakers/Hubitat-Kia-Connect/main/KiaClimateSeatDriver.groovy"
     ) {
         capability "ThermostatMode"
         capability "FanControl"
