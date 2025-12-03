@@ -424,44 +424,38 @@ def handleSmartPolling() {
 def updateStatusHtml(Map statusData) {
     def deviceName = device.getDisplayName()
     
-    // Common inline styles
-    def divStyle = "font-family:Arial;font-size:14px"
-    def h3Style = "color:#1f77b4;margin:0 0 8px"
-    def tableStyle = "width:100%;border-collapse:collapse"
-    def tdBold = "padding:2px 4px;font-weight:bold"
-    def tdNorm = "padding:2px 4px"
-    
     // ============================================================================
-    // Vehicle Info HTML
+    // Vehicle Info HTML (uses CSS classes defined at dashboard level)
     // ============================================================================
     def model = device.currentValue("Model") ?: ""
     def modelYear = device.currentValue("ModelYear") ?: ""
     def modelDisplay = [model, modelYear].findAll().join(" ")
     
-    def vehicleInfoHtml = """<div style="${divStyle}"><h3 style="${h3Style}">${deviceName}</h3><table style="${tableStyle}">
-<tr><td style="${tdBold}">Model</td><td style="${tdNorm}">${modelDisplay}</td></tr>
-<tr><td style="${tdBold}">Odometer</td><td style="${tdNorm}">${device.currentValue("Odometer")} mi</td></tr>
-<tr><td style="${tdBold}">Updated</td><td style="${tdNorm}">${device.currentValue("LastRefreshTime")}</td></tr>
+    def vehicleInfoHtml = """<div class="kia-status"><h3>${deviceName}</h3><table>
+<tr><td class="kia-label">Model</td><td>${modelDisplay}</td></tr>
+<tr><td class="kia-label">Odometer</td><td>${device.currentValue("Odometer")} mi</td></tr>
+<tr><td class="kia-label">Updated</td><td>${device.currentValue("LastRefreshTime")}</td></tr>
 </table></div>""".replaceAll(/\n/, '')
     sendEvent(name: "vehicleInfoHtml", value: vehicleInfoHtml)
     
+    
     // ============================================================================
-    // Battery HTML
+    // Battery HTML (uses CSS classes defined at dashboard level)
     // ============================================================================
     if (device.currentValue("isEV") == "true") {
         def batterySoC = device.currentValue("BatterySoC") ?: "?"
         def evRange = device.currentValue("EVRange") ?: "?"
         def auxBattery = device.currentValue("AuxBattery") ?: "?"
         
-        def batteryHtml = """<div style="${divStyle}"><h3 style="${h3Style}">🔋 Battery</h3><table style="${tableStyle}">
-<tr><td style="${tdBold}">Main</td><td style="${tdNorm}">${batterySoC}%</td></tr>
-<tr><td style="${tdBold}">Range</td><td style="${tdNorm}">${evRange} mi</td></tr>
-<tr><td style="${tdBold}">12V</td><td style="${tdNorm}">${auxBattery}</td></tr>
+        def batteryHtml = """<div class="kia-status"><h3>🔋 Battery</h3><table>
+<tr><td class="kia-label">Main Battery</td><td>${batterySoC}%</td></tr>
+<tr><td class="kia-label">EV Range</td><td>${evRange} mi</td></tr>
+<tr><td class="kia-label">12V Battery</td><td>${auxBattery}</td></tr>
 </table></div>""".replaceAll(/\n/, '')
         sendEvent(name: "batteryHtml", value: batteryHtml)
         
         // ============================================================================
-        // Charging HTML
+        // Charging HTML (uses CSS classes defined at dashboard level)
         // ============================================================================
         def chargingStatus = device.currentValue("ChargingStatus") ?: "?"
         def chargingPower = device.currentValue("ChargingPower")
@@ -480,7 +474,7 @@ def updateStatusHtml(Map statusData) {
                 if (daysDiff == 0) {
                     estimatedCompletionTime = completionDate.format("h:mm a")
                 } else if (daysDiff == 1) {
-                    estimatedCompletionTime = "Tmrw " + completionDate.format("h:mm a")
+                    estimatedCompletionTime = "Tomorrow " + completionDate.format("h:mm a")
                 } else if (daysDiff <= 7) {
                     estimatedCompletionTime = completionDate.format("EEE h:mm a")
                 } else {
@@ -491,12 +485,12 @@ def updateStatusHtml(Map statusData) {
             }
         }
         
-        def chargingHtml = """<div style="${divStyle}"><h3 style="${h3Style}">⚡ Charging</h3><table style="${tableStyle}">
-<tr><td style="${tdBold}">Status</td><td style="${tdNorm}">${chargingStatus}</td></tr>
-<tr><td style="${tdBold}">Plug</td><td style="${tdNorm}">${plugStatus}</td></tr>
-<tr><td style="${tdBold}">Power</td><td style="${tdNorm}">${chargingPowerDisplay}</td></tr>
-<tr><td style="${tdBold}">Time Left</td><td style="${tdNorm}">${chargeTimeRemaining}</td></tr>
-<tr><td style="${tdBold}">Done By</td><td style="${tdNorm}">${estimatedCompletionTime}</td></tr>
+        def chargingHtml = """<div class="kia-status"><h3>⚡ Charging</h3><table>
+<tr><td class="kia-label">Status</td><td>${chargingStatus}</td></tr>
+<tr><td class="kia-label">Plug Status</td><td>${plugStatus}</td></tr>
+<tr><td class="kia-label">Charging Power</td><td>${chargingPowerDisplay}</td></tr>
+<tr><td class="kia-label">Time Remaining</td><td>${chargeTimeRemaining}</td></tr>
+<tr><td class="kia-label">Estimated Done</td><td>${estimatedCompletionTime}</td></tr>
 </table></div>""".replaceAll(/\n/, '')
         sendEvent(name: "chargingHtml", value: chargingHtml)
     } else {
@@ -505,17 +499,17 @@ def updateStatusHtml(Map statusData) {
         def fuelRange = device.currentValue("FuelRange") ?: "?"
         def auxBattery = device.currentValue("AuxBattery") ?: "?"
         
-        def batteryHtml = """<div style="${divStyle}"><h3 style="${h3Style}">⛽ Fuel</h3><table style="${tableStyle}">
-<tr><td style="${tdBold}">Fuel</td><td style="${tdNorm}">${fuelLevel}%</td></tr>
-<tr><td style="${tdBold}">Range</td><td style="${tdNorm}">${fuelRange} mi</td></tr>
-<tr><td style="${tdBold}">12V</td><td style="${tdNorm}">${auxBattery}</td></tr>
+        def batteryHtml = """<div class="kia-status"><h3>⛽ Fuel</h3><table>
+<tr><td class="kia-label">Fuel Level</td><td>${fuelLevel}%</td></tr>
+<tr><td class="kia-label">Fuel Range</td><td>${fuelRange} mi</td></tr>
+<tr><td class="kia-label">12V Battery</td><td>${auxBattery}</td></tr>
 </table></div>""".replaceAll(/\n/, '')
         sendEvent(name: "batteryHtml", value: batteryHtml)
         sendEvent(name: "chargingHtml", value: "")
     }
     
     // ============================================================================
-    // Doors & Security HTML
+    // Doors & Security HTML (uses CSS classes defined at dashboard level)
     // ============================================================================
     def doorLocks = device.currentValue("DoorLocks") ?: "?"
     def frontLeftDoor = device.currentValue("FrontLeftDoor") ?: "?"
@@ -528,22 +522,22 @@ def updateStatusHtml(Map statusData) {
     def engine = device.currentValue("Engine") ?: "?"
     def airControl = device.currentValue("AirControl") ?: "?"
     
-    def doorsSecurityHtml = """<div style="${divStyle}"><h3 style="${h3Style}">🚗 Doors</h3><table style="${tableStyle}">
-<tr><td style="${tdBold}">Locks</td><td style="${tdNorm}">${doorLocks}</td></tr>
-<tr><td style="${tdBold}">Front L</td><td style="${tdNorm}">${frontLeftDoor}</td></tr>
-<tr><td style="${tdBold}">Front R</td><td style="${tdNorm}">${frontRightDoor}</td></tr>
-<tr><td style="${tdBold}">Back L</td><td style="${tdNorm}">${backLeftDoor}</td></tr>
-<tr><td style="${tdBold}">Back R</td><td style="${tdNorm}">${backRightDoor}</td></tr>
-<tr><td style="${tdBold}">Hood</td><td style="${tdNorm}">${hood}</td></tr>
-<tr><td style="${tdBold}">Trunk</td><td style="${tdNorm}">${trunk}</td></tr>
-<tr><td style="${tdBold}">Windows</td><td style="${tdNorm}">${windows}</td></tr>
-<tr><td style="${tdBold}">Engine</td><td style="${tdNorm}">${engine}</td></tr>
-<tr><td style="${tdBold}">Climate</td><td style="${tdNorm}">${airControl}</td></tr>
+    def doorsSecurityHtml = """<div class="kia-status"><h3>🚗 Doors & Security</h3><table>
+<tr><td class="kia-label">Door Locks</td><td>${doorLocks}</td></tr>
+<tr><td class="kia-label">Front Left</td><td>${frontLeftDoor}</td></tr>
+<tr><td class="kia-label">Front Right</td><td>${frontRightDoor}</td></tr>
+<tr><td class="kia-label">Back Left</td><td>${backLeftDoor}</td></tr>
+<tr><td class="kia-label">Back Right</td><td>${backRightDoor}</td></tr>
+<tr><td class="kia-label">Hood</td><td>${hood}</td></tr>
+<tr><td class="kia-label">Trunk</td><td>${trunk}</td></tr>
+<tr><td class="kia-label">Windows</td><td>${windows}</td></tr>
+<tr><td class="kia-label">Engine</td><td>${engine}</td></tr>
+<tr><td class="kia-label">Climate</td><td>${airControl}</td></tr>
 </table></div>""".replaceAll(/\n/, '')
     sendEvent(name: "doorsSecurityHtml", value: doorsSecurityHtml)
     
     // ============================================================================
-    // Location HTML
+    // Location HTML (uses CSS classes defined at dashboard level)
     // ============================================================================
     def latitude = device.currentValue("Latitude")
     def longitude = device.currentValue("Longitude")
@@ -552,30 +546,30 @@ def updateStatusHtml(Map statusData) {
     if (latitude && longitude && googleMapsUrl) {
         def isHome = device.currentValue("isHome")
         def homeIcon = isHome == "true" ? "🏠" : "🚗"
-        def homeStatus = isHome == "true" ? "Home" : "Away"
-        def homeColor = isHome == "true" ? "#28a745" : "#6c757d"
+        def homeStatus = isHome == "true" ? "At Home" : "Away"
+        def homeClass = isHome == "true" ? "kia-home" : "kia-away"
         def speed = device.currentValue("Speed")
         def heading = device.currentValue("Heading")
         def altitude = device.currentValue("Altitude")
         
         def locationRows = ""
-        locationRows += "<tr><td style='${tdBold}'>GPS</td><td style='${tdNorm}'><a href='${googleMapsUrl}' target='_blank' style='color:#1f77b4;text-decoration:none'>${latitude}, ${longitude}</a></td></tr>"
-        locationRows += "<tr><td style='${tdBold}'>Status</td><td style='${tdNorm};color:${homeColor}'>${homeIcon} ${homeStatus}</td></tr>"
+        locationRows += "<tr><td class='kia-label'>Coordinates</td><td><a href='${googleMapsUrl}' target='_blank' class='kia-link'>${latitude}, ${longitude}</a></td></tr>"
+        locationRows += "<tr><td class='kia-label'>Location Status</td><td class='${homeClass}'>${homeIcon} ${homeStatus}</td></tr>"
         
         if (speed && speed != "null" && speed != 0) {
-            locationRows += "<tr><td style='${tdBold}'>Speed</td><td style='${tdNorm}'>${speed} mph</td></tr>"
+            locationRows += "<tr><td class='kia-label'>Speed</td><td>${speed} mph</td></tr>"
         }
         if (heading && heading != "null") {
-            locationRows += "<tr><td style='${tdBold}'>Heading</td><td style='${tdNorm}'>${heading}°</td></tr>"
+            locationRows += "<tr><td class='kia-label'>Heading</td><td>${heading}°</td></tr>"
         }
         if (altitude && altitude != "null") {
-            locationRows += "<tr><td style='${tdBold}'>Altitude</td><td style='${tdNorm}'>${altitude} m</td></tr>"
+            locationRows += "<tr><td class='kia-label'>Altitude</td><td>${altitude} m</td></tr>"
         }
         
-        def locationHtml = """<div style="${divStyle}"><h3 style="${h3Style}">📍 Location</h3><table style="${tableStyle}">${locationRows}</table></div>""".replaceAll(/\n/, '')
+        def locationHtml = """<div class="kia-status"><h3>📍 Location</h3><table>${locationRows}</table></div>""".replaceAll(/\n/, '')
         sendEvent(name: "locationHtml", value: locationHtml)
     } else {
-        def locationHtml = "<div style='${divStyle}'><h3 style='${h3Style}'>📍 Location</h3><p style='padding:5px'>No location data</p></div>"
+        def locationHtml = "<div class='kia-status'><h3>📍 Location</h3><p>No location data available</p></div>"
         sendEvent(name: "locationHtml", value: locationHtml)
     }
 }
