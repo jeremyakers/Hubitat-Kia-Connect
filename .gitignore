@@ -4,6 +4,9 @@
 .temp/
 .hubitat/
 
+# Debug and Development Directory (contains test scripts, API captures, mock data)
+debug/
+
 # Python
 .venv/
 __pycache__/
@@ -23,27 +26,6 @@ build/
 *.crt
 *.csr
 mitmproxy-certs/
-
-# Test and Development Files
-test-*.py
-test-*.js
-test-*.sh
-capture-*.py
-debug-*.py
-explore-*.py
-trigger-*.py
-read_capture.py
-deviceid.py
-bluelinky-example.js
-
-# Mock Data
-mock_responses.json
-*.http
-
-# Email trigger scripts (keep template only)
-kia-email-trigger.sh
-aliases-example.txt
-EMAIL-TRIGGER-SETUP.md
 
 # Logs
 *.log
