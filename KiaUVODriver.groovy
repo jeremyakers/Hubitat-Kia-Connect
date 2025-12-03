@@ -485,10 +485,12 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'thermostatMode', value: thermostatMode)
                     }
                     else if (key == "AirTemp") {
-                        // Map air temperature to thermostat setpoint (value is already numeric)
+                        // Map air temperature to thermostat setpoint attributes (value is already numeric)
                         def numValue = value.toString().isNumber() ? value.toString() as Double : null
                         if (numValue != null) {
                             sendEvent(name: 'thermostatSetpoint', value: numValue)
+                            sendEvent(name: 'coolingSetpoint', value: numValue)
+                            sendEvent(name: 'heatingSetpoint', value: numValue)
                         }
                     }
                     else if (key == "DoorLocks") {
