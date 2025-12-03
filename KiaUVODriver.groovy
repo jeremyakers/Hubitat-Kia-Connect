@@ -82,7 +82,8 @@ metadata {
         attribute "vehicleKey", "string"
         // HTML Status Display (split into sections for dashboard tile 1024 char limit)
         attribute "vehicleInfoHtml", "string"
-        attribute "batteryChargingHtml", "string"
+        attribute "batteryHtml", "string"
+        attribute "chargingHtml", "string"
         attribute "doorsSecurityHtml", "string"
         attribute "locationHtml", "string"
         attribute "error", "string"
@@ -490,16 +491,32 @@ def updateStatusHtml(Map statusData) {
     sendEvent(name: "vehicleInfoHtml", value: vehicleInfoHtml)
     
     // ============================================================================
-    // Battery & Charging HTML (EV only)
+    // Battery HTML (EV only)
     // ============================================================================
     if (device.currentValue("isEV") == "true") {
         def batterySoC = device.currentValue("BatterySoC") ?: "Unknown"
         def evRange = device.currentValue("EVRange") ?: "Unknown"
+        def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
+        
+        def batteryHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">🔋 Battery</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Main Battery:</td><td style="padding: 2px;">${batterySoC}%</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">EV Range:</td><td style="padding: 2px;">${evRange} miles</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">12V Aux Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+            </table>
+        </div>
+        """
+        sendEvent(name: "batteryHtml", value: batteryHtml)
+        
+        // ============================================================================
+        // Charging HTML (EV only)
+        // ============================================================================
         def chargingStatus = device.currentValue("ChargingStatus") ?: "Unknown"
         def chargingPower = device.currentValue("ChargingPower")
         def chargingPowerDisplay = chargingPower ? "${chargingPower} kW" : "Not Available"
         def plugStatus = device.currentValue("PlugStatus") ?: "Unknown"
-        def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
         def chargeTimeRemaining = device.currentValue("ChargeTimeRemaining") ?: "Unknown"
         def estimatedCompletionTimeRaw = device.currentValue("EstimatedChargeCompletionTime")
@@ -526,29 +543,26 @@ def updateStatusHtml(Map statusData) {
             }
         }
         
-        def batteryChargingHtml = """
+        def chargingHtml = """
         <div style="font-family: Arial, sans-serif; font-size: 14px;">
-            <h3 style="color: #1f77b4; margin-bottom: 10px;">🔋 Battery & Charging</h3>
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">⚡ Charging</h3>
             <table style="width: 100%; border-collapse: collapse;">
-                <tr><td style="padding: 2px; font-weight: bold;">Main Battery:</td><td style="padding: 2px;">${batterySoC}%</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">EV Range:</td><td style="padding: 2px;">${evRange} miles</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Charging:</td><td style="padding: 2px;">${chargingStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Status:</td><td style="padding: 2px;">${chargingStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Plug Status:</td><td style="padding: 2px;">${plugStatus}</td></tr>
                 <tr><td style="padding: 2px; font-weight: bold;">Charging Power:</td><td style="padding: 2px;">${chargingPowerDisplay}</td></tr>
                 <tr><td style="padding: 2px; font-weight: bold;">Time Remaining:</td><td style="padding: 2px;">${chargeTimeRemaining}</td></tr>
                 <tr><td style="padding: 2px; font-weight: bold;">Est. Completion:</td><td style="padding: 2px;">${estimatedCompletionTime}</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Plug Status:</td><td style="padding: 2px;">${plugStatus}</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">12V Aux Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
             </table>
         </div>
         """
-        sendEvent(name: "batteryChargingHtml", value: batteryChargingHtml)
+        sendEvent(name: "chargingHtml", value: chargingHtml)
     } else {
-        // For non-EV vehicles, show fuel info
+        // For non-EV vehicles, show fuel info in batteryHtml
         def fuelLevel = device.currentValue("FuelLevel") ?: "Unknown"
         def fuelRange = device.currentValue("FuelRange") ?: "Unknown"
         def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
-        def batteryChargingHtml = """
+        def batteryHtml = """
         <div style="font-family: Arial, sans-serif; font-size: 14px;">
             <h3 style="color: #1f77b4; margin-bottom: 10px;">⛽ Fuel</h3>
             <table style="width: 100%; border-collapse: collapse;">
@@ -558,7 +572,10 @@ def updateStatusHtml(Map statusData) {
             </table>
         </div>
         """
-        sendEvent(name: "batteryChargingHtml", value: batteryChargingHtml)
+        sendEvent(name: "batteryHtml", value: batteryHtml)
+        
+        // No charging info for non-EV vehicles
+        sendEvent(name: "chargingHtml", value: "")
     }
     
     // ============================================================================
