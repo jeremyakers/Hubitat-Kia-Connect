@@ -473,11 +473,15 @@ def updateStatusHtml(Map statusData) {
     // ============================================================================
     // Vehicle Info HTML
     // ============================================================================
+    def model = device.currentValue("Model") ?: ""
+    def modelYear = device.currentValue("ModelYear") ?: ""
+    def modelDisplay = [model, modelYear].findAll().join(" ")  // Only join non-empty values
+    
     def vehicleInfoHtml = """
     <div style="font-family: Arial, sans-serif; font-size: 14px;">
         <h3 style="color: #1f77b4; margin-bottom: 10px;">${deviceName}</h3>
         <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 2px; font-weight: bold;">Model:</td><td style="padding: 2px;">${device.currentValue("Model")} ${device.currentValue("ModelYear")}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Model:</td><td style="padding: 2px;">${modelDisplay}</td></tr>
             <tr><td style="padding: 2px; font-weight: bold;">Odometer:</td><td style="padding: 2px;">${device.currentValue("Odometer")} miles</td></tr>
             <tr><td style="padding: 2px; font-weight: bold;">Last Update:</td><td style="padding: 2px;">${device.currentValue("LastRefreshTime")}</td></tr>
         </table>
