@@ -249,7 +249,7 @@ def authenticate() {
     ]
     
     // JSON body in exact Python format
-    def jsonBody = '{"deviceKey": "", "deviceType": 2, "userCredential": {"userId": "' + username + '", "password": "' + password + '"}}'
+    def jsonBody = '{"deviceKey": "", "deviceType": 2, "userCredential": {"userId": "' + settings.username + '", "password": "' + settings.password + '"}}'
     
     def params = [
         uri: API_BASE_URL,
@@ -289,7 +289,7 @@ def handleAuthResponse(response) {
             log.info "✅ Kia UVO authentication successful!"
             
             // Schedule token refresh if staying logged in
-            if (stay_logged_in) {
+            if (settings.stay_logged_in) {
                 runIn(3600, refreshSession) // Refresh every hour
             }
         } else {
@@ -306,7 +306,7 @@ def handleAuthResponse(response) {
 }
 
 def refreshSession() {
-    if (stay_logged_in && state.sessionId) {
+    if (settings.stay_logged_in && state.sessionId) {
         log.info "Refreshing Kia UVO session..."
         authenticate()
     }
@@ -1354,7 +1354,7 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
 }
 
 
-def sendVehicleCommand(device, command, isRetry = false) {
+def sendVehicleCommand(device, command, commandOptions = null, isRetry = false) {
     log.info "Sending command '${command}' to vehicle ${device.label}${isRetry ? ' (retry)' : ''}"
     
     if (!state.authenticated || !state.sessionId) {
@@ -1730,7 +1730,7 @@ def retryVehicleCommand(data) {
     log.info "Retrying vehicle command '${data.command}' with fresh vehicle keys..."
     def device = getChildDevice(data.deviceNetworkId)
     if (device) {
-        sendVehicleCommand(device, data.command, true)
+        sendVehicleCommand(device, data.command, null, true)
     } else {
         log.error "Device not found for retry: ${data.deviceNetworkId}"
     }
