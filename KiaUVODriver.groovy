@@ -80,75 +80,65 @@ metadata {
         attribute "OutsideTemp", "string"
         attribute "AirControl", "string"
 
-        // Individual Door Status
-        attribute "FrontLeftDoor", "string"
-        attribute "FrontRightDoor", "string"
-        attribute "BackLeftDoor", "string"
-        attribute "BackRightDoor", "string"
-
-        // Additional Status
-        attribute "TotalRange", "string"
-        attribute "Defrost", "string"
-        
-        // Technical (required by app)
+        // Technical
         attribute "vehicleKey", "string"
-        attribute "vinKey", "string"
-
         // HTML Status Display (split into sections for dashboard tile 1024 char limit)
         attribute "vehicleInfoHtml", "string"
         attribute "batteryHtml", "string"
         attribute "chargingHtml", "string"
         attribute "doorsSecurityHtml", "string"
         attribute "locationHtml", "string"
-
-        // MQTT
+        attribute "error", "string"
         attribute "mqttBatteryPublish", "string"
 
-        // Vehicle Commands
+        // Commands
+                command "refresh"
+        command "pollVehicle"
         command "Lock"
-        command "Unlock"
+        command "Unlock" 
         command "StartClimate"
         command "StopClimate"
-        command "HornAndLights"
         command "GetLocation"
-        command "pollVehicle"  // Force a fresh vehicle status poll (may take 10-30 seconds)
-        
-        // Commands called by app (internal)
+            command "HornAndLights"
+    command "StopHornAndLights"
+    command "StartCharge"
+    command "StopCharge"
         command "updateVehicleStatus", [[name: "statusData", type: "JSON_OBJECT"]]
         command "updateLocation", [[name: "latitude", type: "STRING"], [name: "longitude", type: "STRING"]]
     }
-}
 
-preferences {
-    section("Vehicle Settings") {
-        input "refreshInterval", "number", title: "Auto-refresh interval (minutes, 0 to disable)", defaultValue: 0, required: true
-        input "climateTemp", "number", title: "Default Climate Temperature (°F)", defaultValue: 72, range: "60..85", required: true
-        input "debugLogging", "bool", title: "Enable Debug Logging", defaultValue: false
-    }
-    
-    section("Home Location") {
-        input "homeLatitude", "decimal", title: "Home Latitude", required: false
-        input "homeLongitude", "decimal", title: "Home Longitude", required: false
-        input "homeRadius", "decimal", title: "Home Radius (miles)", defaultValue: 0.1, required: false
-    }
-    
-    section("MQTT Settings (Optional)") {
-        input "enableMqtt", "bool", title: "Enable MQTT Battery Publishing", defaultValue: false
-        input "mqttBroker", "text", title: "MQTT Broker (IP:Port or http://webhook)", required: false
-        input "mqttUsername", "text", title: "MQTT Username (optional)", required: false
-        input "mqttPassword", "password", title: "MQTT Password (optional)", required: false
-        input "mqttTopic", "text", title: "MQTT Topic", defaultValue: "hubitat/ev_battery_soc", required: false
-    }
-    
-    section("Smart Polling Schedule") {
-        input "longTermPollingHours", "number", title: "Long-term poll interval (hours, 0 to disable)", defaultValue: 6, range: "0..24", required: true, description: "Runs 24/7 to check vehicle status periodically"
-        input "chargingPollingMinutes", "number", title: "Charging poll interval (minutes, 0 to disable)", defaultValue: 15, range: "0..60", required: true, description: "Only polls when vehicle is actively charging"
-    }
-}
-
-def logDebug(msg) {
-    if (debugLogging) {
-        log.debug msg
+    preferences {
+        // Smart polling configuration
+        input name: "longTermPollingHours", type: "number", title: "Long-term polling interval (hours)", description: "Background polling when not charging (0 to disable)", defaultValue: 6, range: "0..72"
+        input name: "chargingPollingMinutes", type: "number", title: "Charging polling interval (minutes)", description: "Frequent polling when actively charging", defaultValue: 5, range: "1..60"
+        
+        input name: "debugLogging", type: "bool", title: "Enable debug logging", defaultValue: false
+        
+        // Auto-refresh after commands
+        input name: "autoRefreshAfterCommands", type: "bool", title: "Auto-refresh vehicle status after commands", defaultValue: true
+        input name: "refreshDelaySeconds", type: "number", title: "Time to wait after sending command before auto-refresh (seconds)", defaultValue: 5, range: "1..30"
+        
+        // Climate control settings
+        input name: "useDetailedClimate", type: "bool", title: "Use detailed climate parameters", defaultValue: false
+        input name: "climateTemp", type: "number", title: "Climate temperature (°F)", defaultValue: 72, range: "60..85"
+        input name: "climateDuration", type: "number", title: "Climate duration (minutes)", defaultValue: 10, range: "1..30"
+        input name: "climateDefrost", type: "bool", title: "Enable defrost", defaultValue: false
+        input name: "climateHeatedSteering", type: "bool", title: "Enable heated steering wheel", defaultValue: false
+        input name: "climateHeatedSeats", type: "bool", title: "Enable heated seats", defaultValue: false
+        input name: "climateCooledSeats", type: "bool", title: "Enable cooled seats", defaultValue: false
+        
+        // Home location detection
+        input name: "homeLatitude", type: "text", title: "Home latitude", description: "Decimal degrees (e.g., 40.712776)", required: false
+        input name: "homeLongitude", type: "text", title: "Home longitude", description: "Decimal degrees (e.g., -74.006021)", required: false
+        input name: "homeRadius", type: "number", title: "Home radius (meters)", defaultValue: 100, range: "10..1000", description: "Distance from home to consider 'at home'"
+        
+        // MQTT Configuration
+        input name: "enableMqtt", type: "bool", title: "Enable MQTT Battery Publishing", description: "Publish battery SoC to MQTT when home and plugged in", defaultValue: false
+        input name: "mqttBroker", type: "text", title: "MQTT Broker/Webhook URL", description: "IP address (192.168.1.100) or HTTP webhook URL for MQTT publishing", required: false
+        input name: "mqttPort", type: "number", title: "MQTT Port", description: "MQTT broker port (ignored for HTTP webhooks)", defaultValue: 1883, required: false
+        input name: "mqttTopic", type: "text", title: "MQTT Topic", description: "Topic to publish battery SoC (e.g., homeassistant/sensor/kia_battery/state)", required: false
+        input name: "mqttUsername", type: "text", title: "MQTT Username", description: "MQTT broker username or HTTP auth (optional)", required: false
+        input name: "mqttPassword", type: "password", title: "MQTT Password", description: "MQTT broker password or HTTP auth (optional)", required: false
     }
 }
 
@@ -159,37 +149,40 @@ def installed() {
 
 def updated() {
     log.info "Kia UVO Vehicle Driver updated for ${device.label}"
-    unschedule()
     
-    // Disconnect MQTT if settings changed
+    // Disconnect from MQTT if connected (will reconnect when needed)
     if (interfaces.mqtt.isConnected()) {
         interfaces.mqtt.disconnect()
+        log.info "Disconnected from MQTT broker for reconfiguration"
     }
     
     initialize()
 }
 
 def initialize() {
-    logDebug "Initializing Kia UVO Vehicle Driver for ${device.label}"
+    log.info "Initializing Kia UVO Vehicle Driver for ${device.label}"
     
-    // Clear any existing schedules
+    // Clear all existing schedules
     unschedule()
     
-    // Set up long-term polling if enabled
+    // Schedule long-term polling if enabled
     if (longTermPollingHours && longTermPollingHours > 0) {
         runIn(longTermPollingHours * 3600, longTermPoll)
-        log.info "🕒 Long-term polling scheduled every ${longTermPollingHours} hours"
+        log.info "Long-term polling scheduled every ${longTermPollingHours} hours"
     }
     
-    // Note: Charging polls are triggered by handleSmartPolling() when charging is detected
+    // Delay initial status refresh to allow attributes to be set
+    runIn(5, refresh)
 }
 
 def refresh() {
-    logDebug "Calling parent app to get cached vehicle status..."
-    // Request cached status from parent app (LastRefreshTime will be updated only on successful API response)
+    log.info "Refreshing cached status for ${device.label} (fast)"
+    
     try {
+        log.debug "Calling parent app to get cached vehicle status..."
+        // Request cached status from parent app (LastRefreshTime will be updated only on successful API response)
         parent.getVehicleStatus(device)
-        logDebug "Cached status request completed"
+        log.debug "Cached status request completed"
     } catch (Exception e) {
         log.error "Failed to call parent.getVehicleStatus: ${e.message}"
         // Set a failure indicator instead of success time
@@ -236,13 +229,23 @@ def pollVehicle() {
     log.info "Polling vehicle directly for ${device.label} (this may take 10-30 seconds)"
     
     try {
-        logDebug "Calling parent app to poll vehicle status..."
-        // This will trigger a refresh from the vehicle (not cached data)
-        parent.refreshVehicleStatus(device, true)
-        logDebug "Vehicle poll request completed"
+        log.debug "Calling parent app to poll vehicle status..."
+        // Request fresh status from parent app (polls vehicle directly)
+        parent.refreshVehicleStatus(device)
+        log.debug "Vehicle poll request completed"
     } catch (Exception e) {
-        log.error "Failed to poll vehicle: ${e.message}"
+        log.error "Failed to call parent.refreshVehicleStatus: ${e.message}"
+        // Set a failure indicator instead of success time
         sendEvent(name: "LastRefreshTime", value: "Failed: " + new Date().format("yyyy-MM-dd HH:mm:ss"))
+    }
+}
+
+def parse(String description) {
+    if (debugLogging) log.debug "Parsing: ${description}"
+    
+    // Handle MQTT messages if this is an MQTT message
+    if (description.contains("mqtt")) {
+        if (debugLogging) log.debug "MQTT message received: ${description}"
     }
 }
 
@@ -251,55 +254,68 @@ def pollVehicle() {
 // ====================
 
 def Lock() {
-    log.info "Locking ${device.label}..."
+    log.info "Locking ${device.label}"
     parent.sendVehicleCommand(device, "lock")
 }
 
 def Unlock() {
-    log.info "Unlocking ${device.label}..."
+    log.info "Unlocking ${device.label}"
     parent.sendVehicleCommand(device, "unlock")
 }
 
 def StartClimate() {
-    def temp = climateTemp ?: 72
-    log.info "Starting climate control for ${device.label} at ${temp}°F..."
-    parent.sendVehicleCommand(device, "start", [temperature: temp])
+    log.info "Starting climate control for ${device.label}"
+    parent.sendVehicleCommand(device, "start")
 }
 
 def StopClimate() {
-    log.info "Stopping climate control for ${device.label}..."
+    log.info "Stopping climate control for ${device.label}"
     parent.sendVehicleCommand(device, "stop")
 }
 
+def GetLocation() {
+    log.info "Getting location for ${device.label}"
+    parent.sendVehicleCommand(device, "location")
+}
+
 def HornAndLights() {
-    log.info "Activating horn and lights for ${device.label}..."
+    log.info "Activating horn and lights for ${device.label}"
     parent.sendVehicleCommand(device, "horn_lights")
 }
 
-def GetLocation() {
-    log.info "Getting location for ${device.label}..."
-    parent.sendVehicleCommand(device, "location")
+def StopHornAndLights() {
+    log.info "Stopping horn and lights for ${device.label}"
+    parent.sendVehicleCommand(device, "stop_horn_lights")
+}
+
+def StartCharge() {
+    log.info "Starting charge for ${device.label}"
+    parent.sendVehicleCommand(device, "start_charge")
+}
+
+def StopCharge() {
+    log.info "Stopping charge for ${device.label}"
+    parent.sendVehicleCommand(device, "stop_charge")
 }
 
 // ====================
 // STANDARD CAPABILITY COMMANDS
 // ====================
 
-// Switch capability (for climate control)
+// Switch capability commands (for climate control)
 def on() {
+    log.info "Turning on climate control for ${device.label} (Switch capability)"
     StartClimate()
 }
 
-def off() {
-    StopClimate()
-}
-
-// Lock capability
+// Lock capability commands (for door locks)
 def lock() {
+    log.info "Locking ${device.label} (Lock capability)"
     Lock()
 }
 
 def unlock() {
+    log.info "Unlocking ${device.label} (Lock capability)"
     Unlock()
 }
 
@@ -345,72 +361,111 @@ def updateVehicleStatus(Map statusData) {
     if (statusData) {
         statusData.each { key, value ->
             if (value != null) {
-                // Special handling for attributes that need unit parameter
-                if (key == "AuxBattery" && statusData.containsKey("AuxBatteryUnit")) {
-                    def numValue = value
-                    def unit = statusData["AuxBatteryUnit"]
-                    sendEvent(name: key, value: numValue, unit: unit)
-                } else if (key == "AirTemp" && statusData.containsKey("AirTempUnit")) {
-                    def numValue = value
-                    def unit = statusData["AirTempUnit"]
-                    sendEvent(name: key, value: numValue, unit: unit)
-                } else if (key == "ChargingPower" && statusData.containsKey("ChargingPowerUnit")) {
-                    def numValue = value
-                    def unit = statusData["ChargingPowerUnit"]
-                    sendEvent(name: key, value: numValue, unit: unit)
-                } else if (key == "Speed" && statusData.containsKey("SpeedUnit")) {
-                    def numValue = value
-                    def unit = statusData["SpeedUnit"]
-                    sendEvent(name: key, value: numValue, unit: unit)
-                } else if (key == "Altitude" && statusData.containsKey("AltitudeUnit")) {
-                    def numValue = value
-                    def unit = statusData["AltitudeUnit"]
-                    sendEvent(name: key, value: numValue, unit: unit)
-                } else if (key.endsWith("Unit")) {
-                    // Skip unit keys as they're handled above
-                    return
-                } else {
-                    // Map to standard capability attributes
-                    if (key == "BatterySoC") {
-                        sendEvent(name: "battery", value: value)
-                    } else if (key == "AirControl") {
-                        sendEvent(name: "switch", value: value == "On" ? "on" : "off")
-                        sendEvent(name: "thermostatMode", value: value == "On" ? "auto" : "off")
-                    } else if (key == "DoorLocks") {
-                        sendEvent(name: "lock", value: value == "Locked" ? "locked" : "unlocked")
-                    } else if (key == "isHome") {
-                        sendEvent(name: "presence", value: value == "true" ? "present" : "not present")
+                try {
+                    // Handle numeric attributes with units separately
+                    if (key == "AuxBattery") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["AuxBatteryUnit"] ?: "%"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue} ${unit}"
+                        }
+                    }
+                    else if (key == "AirTemp") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["AirTempUnit"] ?: "°F"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue}${unit}"
+                        }
+                    }
+                    else if (key == "ChargingPower") {
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            def unit = statusData["ChargingPowerUnit"] ?: "kW"
+                            sendEvent(name: key, value: numValue, unit: unit)
+                            if (debugLogging) log.debug "Updated ${key} = ${numValue} ${unit}"
+                        }
+                    }
+                    else if (key.endsWith("Unit")) {
+                        // Skip unit data - it's used with the corresponding value attribute
+                        if (debugLogging) log.debug "Skipping unit data: ${key} = ${value}"
+                    }
+                    else {
+                        // Standard string attribute
+                        sendEvent(name: key, value: value.toString())
+                        if (debugLogging) log.debug "Updated ${key} = ${value}"
                     }
                     
-                    // Send the standard attribute event
-                    sendEvent(name: key, value: value)
-                    
-                    // Update contact sensor if any door/window status changed
-                    if (key in ["FrontLeftDoor", "FrontRightDoor", "BackLeftDoor", "BackRightDoor", "Hood", "Trunk", "Windows"]) {
+                    // Map custom attributes to standard Hubitat capability attributes
+                    if (key == "BatterySoC") {
+                        sendEvent(name: 'battery', value: value.toString())
+                    }
+                    else if (key == "AirControl") {
+                        // Map climate control status to Switch capability
+                        def switchValue = value.toString().toLowerCase().contains("on") || 
+                                         value.toString().toLowerCase().contains("running") || 
+                                         value.toString().toLowerCase().contains("active") ? "on" : "off"
+                        sendEvent(name: 'switch', value: switchValue)
+                    }
+                    else if (key == "AirTemp") {
+                        // Map air temperature to thermostat setpoint (value is already numeric)
+                        def numValue = value.toString().isNumber() ? value.toString() as Double : null
+                        if (numValue != null) {
+                            sendEvent(name: 'thermostatSetpoint', value: numValue)
+                        }
+                    }
+                    else if (key == "DoorLocks") {
+                        // Map door lock status to Lock capability
+                        def lockValue = value.toString().toLowerCase().contains("locked") ? "locked" : "unlocked"
+                        sendEvent(name: 'lock', value: lockValue)
+                    }
+                    else if (key == "isHome") {
+                        // Map home detection to PresenceSensor capability
+                        def presenceValue = value.toString() == "true" ? "present" : "not present"
+                        sendEvent(name: 'presence', value: presenceValue)
+                    }
+                    else if (key == "FrontLeftDoor" || key == "FrontRightDoor" || key == "BackLeftDoor" || key == "BackRightDoor" || key == "Hood" || key == "Trunk" || key == "Windows") {
+                        // Update combined contact sensor status when any opening status changes
                         updateContactSensorStatus()
                     }
+                    
+                    if (debugLogging) log.debug "Updated ${key} = ${value}"
+                } catch (Exception e) {
+                    log.error "Failed to update ${key}: ${e.message}"
+                    sendEvent(name: "error", value: "Attribute Update Failed", descriptionText: "Failed to update ${key}: ${e.message}")
                 }
             }
         }
         
-        // After all attributes are updated, publish battery to MQTT if conditions are met
+        // Update HTML status display
+        updateStatusHtml(statusData)
+        
+        // Smart polling logic - schedule next poll based on charging status
+        def newChargingStatus = statusData["ChargingStatus"]
+        handleSmartPolling(newChargingStatus)
+        
+        // Publish battery to MQTT after all attributes have been updated
+        // Pass statusData directly to avoid relying on device.currentValue() which may not be atomic
         if (statusData.containsKey("BatterySoC")) {
             publishBatteryToMqtt(statusData)
         }
         
-        // Update the HTML status displays
-        updateStatusHtml(statusData)
-        
-        // Handle smart polling schedule based on charging status
-        handleSmartPolling()
+        if (debugLogging) log.debug "Successfully updated vehicle status"
+    } else {
+        log.warn "statusData is null or empty"
     }
 }
 
-def handleSmartPolling() {
+def handleSmartPolling(chargingStatus = null) {
     try {
-        // Check if vehicle is actively charging
-        def chargingStatus = device.currentValue("ChargingStatus")
-        def isCharging = (chargingStatus?.toLowerCase() == "charging")
+        // Use passed charging status or get current value as fallback
+        if (chargingStatus == null) {
+            chargingStatus = device.currentValue("ChargingStatus")
+        }
+        def isCharging = chargingStatus && chargingStatus.toString().toLowerCase() == "charging"
+        
+        if (debugLogging) log.debug "Smart polling check: ChargingStatus='${chargingStatus}', isCharging=${isCharging}"
         
         // Cancel any existing charging polls
         unschedule("chargingPoll")
@@ -433,46 +488,57 @@ def updateStatusHtml(Map statusData) {
     def deviceName = device.getDisplayName()
     
     // ============================================================================
-    // Vehicle Info HTML (uses CSS classes defined at dashboard level)
+    // Vehicle Info HTML
     // ============================================================================
     def model = device.currentValue("Model") ?: ""
     def modelYear = device.currentValue("ModelYear") ?: ""
-    def modelDisplay = [model, modelYear].findAll().join(" ")
+    def modelDisplay = [model, modelYear].findAll().join(" ")  // Only join non-empty values
     
-    def vehicleInfoHtml = """<div class="kia-status"><h3>${deviceName}</h3><table>
-<tr><td class="kia-label">Model</td><td>${modelDisplay}</td></tr>
-<tr><td class="kia-label">Odometer</td><td>${device.currentValue("Odometer")} mi</td></tr>
-<tr><td class="kia-label">Updated</td><td>${device.currentValue("LastRefreshTime")}</td></tr>
-</table></div>""".replaceAll(/\n/, '')
+    def vehicleInfoHtml = """
+    <div style="font-family: Arial, sans-serif; font-size: 14px;">
+        <h3 style="color: #1f77b4; margin-bottom: 10px;">${deviceName}</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 2px; font-weight: bold;">Model:</td><td style="padding: 2px;">${modelDisplay}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Odometer:</td><td style="padding: 2px;">${device.currentValue("Odometer")} miles</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Last Update:</td><td style="padding: 2px;">${device.currentValue("LastRefreshTime")}</td></tr>
+        </table>
+    </div>
+    """
     sendEvent(name: "vehicleInfoHtml", value: vehicleInfoHtml)
     
-    
     // ============================================================================
-    // Battery HTML (uses CSS classes defined at dashboard level)
+    // Battery HTML (EV only)
     // ============================================================================
     if (device.currentValue("isEV") == "true") {
-        def batterySoC = device.currentValue("BatterySoC") ?: "?"
-        def evRange = device.currentValue("EVRange") ?: "?"
-        def auxBattery = device.currentValue("AuxBattery") ?: "?"
+        def batterySoC = device.currentValue("BatterySoC") ?: "Unknown"
+        def evRange = device.currentValue("EVRange") ?: "Unknown"
+        def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
-        def batteryHtml = """<div class="kia-status"><h3>🔋 Battery</h3><table>
-<tr><td class="kia-label">Main Battery</td><td>${batterySoC}%</td></tr>
-<tr><td class="kia-label">EV Range</td><td>${evRange} mi</td></tr>
-<tr><td class="kia-label">12V Battery</td><td>${auxBattery}</td></tr>
-</table></div>""".replaceAll(/\n/, '')
+        def batteryHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">🔋 Battery</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Main Battery:</td><td style="padding: 2px;">${batterySoC}%</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">EV Range:</td><td style="padding: 2px;">${evRange} miles</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">12V Aux Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+            </table>
+        </div>
+        """
         sendEvent(name: "batteryHtml", value: batteryHtml)
         
         // ============================================================================
-        // Charging HTML (uses CSS classes defined at dashboard level)
+        // Charging HTML (EV only)
         // ============================================================================
-        def chargingStatus = device.currentValue("ChargingStatus") ?: "?"
+        def chargingStatus = device.currentValue("ChargingStatus") ?: "Unknown"
         def chargingPower = device.currentValue("ChargingPower")
-        def chargingPowerDisplay = chargingPower ? "${chargingPower} kW" : "N/A"
-        def plugStatus = device.currentValue("PlugStatus") ?: "?"
-        def chargeTimeRemaining = device.currentValue("ChargeTimeRemaining") ?: "?"
-        def estimatedCompletionTimeRaw = device.currentValue("EstimatedChargeCompletionTime")
-        def estimatedCompletionTime = "?"
+        def chargingPowerDisplay = chargingPower ? "${chargingPower} kW" : "Not Available"
+        def plugStatus = device.currentValue("PlugStatus") ?: "Unknown"
         
+        def chargeTimeRemaining = device.currentValue("ChargeTimeRemaining") ?: "Unknown"
+        def estimatedCompletionTimeRaw = device.currentValue("EstimatedChargeCompletionTime")
+        def estimatedCompletionTime = "Unknown"
+        
+        // Format the timestamp for display if available
         if (estimatedCompletionTimeRaw && estimatedCompletionTimeRaw != "Unknown") {
             try {
                 def completionDate = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", estimatedCompletionTimeRaw)
@@ -493,59 +559,76 @@ def updateStatusHtml(Map statusData) {
             }
         }
         
-        def chargingHtml = """<div class="kia-status"><h3>⚡ Charging</h3><table>
-<tr><td class="kia-label">Status</td><td>${chargingStatus}</td></tr>
-<tr><td class="kia-label">Plug Status</td><td>${plugStatus}</td></tr>
-<tr><td class="kia-label">Charging Power</td><td>${chargingPowerDisplay}</td></tr>
-<tr><td class="kia-label">Time Remaining</td><td>${chargeTimeRemaining}</td></tr>
-<tr><td class="kia-label">Estimated Done</td><td>${estimatedCompletionTime}</td></tr>
-</table></div>""".replaceAll(/\n/, '')
+        def chargingHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">⚡ Charging</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Status:</td><td style="padding: 2px;">${chargingStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Plug Status:</td><td style="padding: 2px;">${plugStatus}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Charging Power:</td><td style="padding: 2px;">${chargingPowerDisplay}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Time Remaining:</td><td style="padding: 2px;">${chargeTimeRemaining}</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Est. Completion:</td><td style="padding: 2px;">${estimatedCompletionTime}</td></tr>
+            </table>
+        </div>
+        """
         sendEvent(name: "chargingHtml", value: chargingHtml)
     } else {
-        // For non-EV vehicles
-        def fuelLevel = device.currentValue("FuelLevel") ?: "?"
-        def fuelRange = device.currentValue("FuelRange") ?: "?"
-        def auxBattery = device.currentValue("AuxBattery") ?: "?"
+        // For non-EV vehicles, show fuel info in batteryHtml
+        def fuelLevel = device.currentValue("FuelLevel") ?: "Unknown"
+        def fuelRange = device.currentValue("FuelRange") ?: "Unknown"
+        def auxBattery = device.currentValue("AuxBattery") ?: "Unknown"
         
-        def batteryHtml = """<div class="kia-status"><h3>⛽ Fuel</h3><table>
-<tr><td class="kia-label">Fuel Level</td><td>${fuelLevel}%</td></tr>
-<tr><td class="kia-label">Fuel Range</td><td>${fuelRange} mi</td></tr>
-<tr><td class="kia-label">12V Battery</td><td>${auxBattery}</td></tr>
-</table></div>""".replaceAll(/\n/, '')
+        def batteryHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">⛽ Fuel</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Fuel:</td><td style="padding: 2px;">${fuelLevel}%</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Range:</td><td style="padding: 2px;">${fuelRange} miles</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">12V Battery:</td><td style="padding: 2px;">${auxBattery}</td></tr>
+            </table>
+        </div>
+        """
         sendEvent(name: "batteryHtml", value: batteryHtml)
+        
+        // No charging info for non-EV vehicles
         sendEvent(name: "chargingHtml", value: "")
     }
     
     // ============================================================================
-    // Doors & Security HTML (uses CSS classes defined at dashboard level)
+    // Doors & Security HTML
     // ============================================================================
-    def doorLocks = device.currentValue("DoorLocks") ?: "?"
-    def frontLeftDoor = device.currentValue("FrontLeftDoor") ?: "?"
-    def frontRightDoor = device.currentValue("FrontRightDoor") ?: "?"
-    def backLeftDoor = device.currentValue("BackLeftDoor") ?: "?"
-    def backRightDoor = device.currentValue("BackRightDoor") ?: "?"
-    def hood = device.currentValue("Hood") ?: "?"
-    def trunk = device.currentValue("Trunk") ?: "?"
-    def windows = device.currentValue("Windows") ?: "?"
-    def engine = device.currentValue("Engine") ?: "?"
-    def airControl = device.currentValue("AirControl") ?: "?"
+    def doorLocks = device.currentValue("DoorLocks") ?: "Unknown"
+    def engine = device.currentValue("Engine") ?: "Unknown"
+    def airControl = device.currentValue("AirControl") ?: "Unknown"
+    def hood = device.currentValue("Hood") ?: "Unknown"
+    def trunk = device.currentValue("Trunk") ?: "Unknown"
+    def windows = device.currentValue("Windows") ?: "Unknown"
+    def frontLeftDoor = device.currentValue("FrontLeftDoor") ?: "Unknown"
+    def frontRightDoor = device.currentValue("FrontRightDoor") ?: "Unknown"
+    def backLeftDoor = device.currentValue("BackLeftDoor") ?: "Unknown"
+    def backRightDoor = device.currentValue("BackRightDoor") ?: "Unknown"
     
-    def doorsSecurityHtml = """<div class="kia-status"><h3>🚗 Doors & Security</h3><table>
-<tr><td class="kia-label">Door Locks</td><td>${doorLocks}</td></tr>
-<tr><td class="kia-label">Front Left</td><td>${frontLeftDoor}</td></tr>
-<tr><td class="kia-label">Front Right</td><td>${frontRightDoor}</td></tr>
-<tr><td class="kia-label">Back Left</td><td>${backLeftDoor}</td></tr>
-<tr><td class="kia-label">Back Right</td><td>${backRightDoor}</td></tr>
-<tr><td class="kia-label">Hood</td><td>${hood}</td></tr>
-<tr><td class="kia-label">Trunk</td><td>${trunk}</td></tr>
-<tr><td class="kia-label">Windows</td><td>${windows}</td></tr>
-<tr><td class="kia-label">Engine</td><td>${engine}</td></tr>
-<tr><td class="kia-label">Climate</td><td>${airControl}</td></tr>
-</table></div>""".replaceAll(/\n/, '')
+    def doorsSecurityHtml = """
+    <div style="font-family: Arial, sans-serif; font-size: 14px;">
+        <h3 style="color: #1f77b4; margin-bottom: 10px;">🚗 Doors & Security</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 2px; font-weight: bold;">Door Locks:</td><td style="padding: 2px;">${doorLocks}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Front Left:</td><td style="padding: 2px;">${frontLeftDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Front Right:</td><td style="padding: 2px;">${frontRightDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Back Left:</td><td style="padding: 2px;">${backLeftDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Back Right:</td><td style="padding: 2px;">${backRightDoor}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Hood:</td><td style="padding: 2px;">${hood}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Trunk:</td><td style="padding: 2px;">${trunk}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Windows:</td><td style="padding: 2px;">${windows}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Engine:</td><td style="padding: 2px;">${engine}</td></tr>
+            <tr><td style="padding: 2px; font-weight: bold;">Air Control:</td><td style="padding: 2px;">${airControl}</td></tr>
+        </table>
+    </div>
+    """
     sendEvent(name: "doorsSecurityHtml", value: doorsSecurityHtml)
     
     // ============================================================================
-    // Location HTML (uses CSS classes defined at dashboard level)
+    // Location HTML
     // ============================================================================
     def latitude = device.currentValue("Latitude")
     def longitude = device.currentValue("Longitude")
@@ -555,29 +638,48 @@ def updateStatusHtml(Map statusData) {
         def isHome = device.currentValue("isHome")
         def homeIcon = isHome == "true" ? "🏠" : "🚗"
         def homeStatus = isHome == "true" ? "At Home" : "Away"
-        def homeClass = isHome == "true" ? "kia-home" : "kia-away"
+        def homeColor = isHome == "true" ? "#28a745" : "#6c757d"
+        
         def speed = device.currentValue("Speed")
         def heading = device.currentValue("Heading")
         def altitude = device.currentValue("Altitude")
         
-        def locationRows = ""
-        locationRows += "<tr><td class='kia-label'>Coordinates</td><td><a href='${googleMapsUrl}' target='_blank' class='kia-link'>${latitude}, ${longitude}</a></td></tr>"
-        locationRows += "<tr><td class='kia-label'>Location Status</td><td class='${homeClass}'>${homeIcon} ${homeStatus}</td></tr>"
+        def locationHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">📍 Location</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 2px; font-weight: bold;">Coordinates:</td><td style="padding: 2px;"><a href="${googleMapsUrl}" target="_blank" style="color: #1f77b4; text-decoration: none;">${latitude}, ${longitude}</a></td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Status:</td><td style="padding: 2px; color: ${homeColor};">${homeIcon} ${homeStatus}</td></tr>
+        """
         
         if (speed && speed != "null" && speed != 0) {
-            locationRows += "<tr><td class='kia-label'>Speed</td><td>${speed} mph</td></tr>"
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Speed:</td><td style="padding: 2px;">${speed} mph</td></tr>
+            """
         }
         if (heading && heading != "null") {
-            locationRows += "<tr><td class='kia-label'>Heading</td><td>${heading}°</td></tr>"
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Heading:</td><td style="padding: 2px;">${heading}°</td></tr>
+            """
         }
         if (altitude && altitude != "null") {
-            locationRows += "<tr><td class='kia-label'>Altitude</td><td>${altitude} m</td></tr>"
+            locationHtml += """
+                <tr><td style="padding: 2px; font-weight: bold;">Altitude:</td><td style="padding: 2px;">${altitude} m</td></tr>
+            """
         }
         
-        def locationHtml = """<div class="kia-status"><h3>📍 Location</h3><table>${locationRows}</table></div>""".replaceAll(/\n/, '')
+        locationHtml += """
+            </table>
+        </div>
+        """
         sendEvent(name: "locationHtml", value: locationHtml)
     } else {
-        def locationHtml = "<div class='kia-status'><h3>📍 Location</h3><p>No location data available</p></div>"
+        def locationHtml = """
+        <div style="font-family: Arial, sans-serif; font-size: 14px;">
+            <h3 style="color: #1f77b4; margin-bottom: 10px;">📍 Location</h3>
+            <p style="padding: 5px;">Location data not available</p>
+        </div>
+        """
         sendEvent(name: "locationHtml", value: locationHtml)
     }
 }
@@ -619,142 +721,113 @@ def updateContactSensorStatus() {
             isAnyOpen = true
         }
         
+        // Check hood status
         def hood = device.currentValue("Hood")
         if (hood?.toLowerCase()?.contains("open")) {
             isAnyOpen = true
         }
         
+        // Check trunk status
         def trunk = device.currentValue("Trunk")
         if (trunk?.toLowerCase()?.contains("open")) {
             isAnyOpen = true
         }
         
+        // Check windows status (if any window is open)
         def windows = device.currentValue("Windows")
         if (windows?.toLowerCase()?.contains("open")) {
             isAnyOpen = true
         }
         
-        // Set contact sensor status
-        sendEvent(name: "contact", value: isAnyOpen ? "open" : "closed")
+        // Set contact sensor value
+        def contactValue = isAnyOpen ? "open" : "closed"
+        sendEvent(name: 'contact', value: contactValue)
         
-        if (debugLogging) log.debug "Contact sensor status updated: ${isAnyOpen ? 'open' : 'closed'}"
+        if (debugLogging) log.debug "Contact sensor updated: ${contactValue} (FL: ${frontLeftDoor}, FR: ${frontRightDoor}, BL: ${backLeftDoor}, BR: ${backRightDoor}, hood: ${hood}, trunk: ${trunk}, windows: ${windows})"
+        
     } catch (Exception e) {
         log.error "Failed to update contact sensor status: ${e.message}"
     }
 }
 
+// ====================
+// MQTT PUBLISHING
+// ====================
+
 def publishBatteryToMqtt(Map statusData = null) {
-    if (!enableMqtt || !mqttBroker || !mqttTopic) {
-        if (debugLogging) log.debug "MQTT not enabled or not fully configured"
-        return
-    }
-    
     try {
-        // Use statusData if provided, otherwise fall back to device.currentValue
+        // Check if MQTT is enabled
+        if (!enableMqtt || !mqttBroker || !mqttTopic) {
+            if (debugLogging) log.debug "MQTT not enabled or not configured, skipping publish"
+            return
+        }
+        
+        // Use statusData if provided (preferred), otherwise fall back to device.currentValue()
+        // This avoids race conditions where sendEvent() hasn't updated currentValue() yet
         def isHome = statusData?.isHome ?: device.currentValue("isHome")
         def presence = statusData?.presence ?: device.currentValue("presence")
         def plugStatus = statusData?.PlugStatus ?: device.currentValue("PlugStatus")
         def batterySoC = statusData?.BatterySoC ?: device.currentValue("BatterySoC")
         
-        // Check if vehicle is at home (via isHome OR presence)
+        // Check if vehicle is home - check both isHome and presence attributes
         def atHome = (isHome == "true") || (presence == "present")
         
-        // Check if vehicle is plugged in
-        def isPluggedIn = (plugStatus?.toLowerCase()?.contains("connected") || plugStatus?.toLowerCase() == "plugged in")
-        
-        if (debugLogging) {
-            log.debug "MQTT publish conditions: atHome=${atHome}, isPluggedIn=${isPluggedIn}, plugStatus=${plugStatus}, batterySoC=${batterySoC}"
+        if (!atHome) {
+            if (debugLogging) log.debug "Vehicle not at home (isHome: ${isHome}, presence: ${presence}), skipping MQTT publish"
+            return
         }
         
-        if (atHome && isPluggedIn && batterySoC != null) {
-            def batteryValue = batterySoC
+        // Check if vehicle is plugged in - check for exact status (avoid "unplugged" matching "plugged")
+        def isPluggedIn = plugStatus && (plugStatus.toLowerCase().contains("connected") ||
+                                        plugStatus.toLowerCase() == "plugged in")
+        
+        if (!isPluggedIn) {
+            if (debugLogging) log.debug "Vehicle not plugged in (PlugStatus: ${plugStatus}), skipping MQTT publish"
+            return
+        }
+        
+        // Check battery SoC
+        if (!batterySoC) {
+            log.warn "No battery SoC available for MQTT publish"
+            return
+        }
+        
+        // Clean up battery value (remove % if present)
+        def batteryValue = batterySoC.toString().replaceAll("[^0-9.]", "")
+        
+        // Connect to MQTT broker if not already connected
+        if (!interfaces.mqtt.isConnected()) {
+            def brokerUrl = mqttBroker.startsWith("tcp://") ? mqttBroker : "tcp://${mqttBroker}:${mqttPort ?: 1883}"
+            def clientId = "hubitat_kia_${device.id}_${now()}"
             
-            // Check if it's an HTTP webhook instead of MQTT
-            if (mqttBroker.startsWith("http://") || mqttBroker.startsWith("https://")) {
-                // HTTP webhook mode
-                def params = [
-                    uri: mqttBroker,
-                    contentType: "application/json",
-                    body: [battery_soc: batteryValue]
-                ]
-                
-                httpPost(params) { response ->
-                    log.info "🔋 HTTP Webhook: Published battery SoC = ${batteryValue}% (vehicle at home and plugged in)"
-                }
-            } else {
-                // Standard MQTT mode
-                if (!interfaces.mqtt.isConnected()) {
-                    // Connect to MQTT broker
-                    def brokerParts = mqttBroker.split(":")
-                    def broker = brokerParts[0]
-                    def port = brokerParts.size() > 1 ? brokerParts[1].toInteger() : 1883
-                    
-                    def clientId = "hubitat-kia-${device.id}"
-                    
-                    if (mqttUsername && mqttPassword) {
-                        interfaces.mqtt.connect(
-                            "tcp://${broker}:${port}",
-                            clientId,
-                            mqttUsername,
-                            mqttPassword
-                        )
-                    } else {
-                        interfaces.mqtt.connect(
-                            "tcp://${broker}:${port}",
-                            clientId,
-                            null,
-                            null
-                        )
-                    }
-                    
-                    // Wait a moment for connection to establish
-                    pauseExecution(1000)
-                }
-                
-                if (interfaces.mqtt.isConnected()) {
-                    // Publish battery SoC
-                    interfaces.mqtt.publish(mqttTopic, batteryValue.toString(), 1, true)
-                    log.info "🔋 MQTT: Published to ${mqttTopic} = ${batteryValue}% (vehicle at home and plugged in)"
-                    
-                    // Send event for Rule Machine integration
-                    sendEvent(name: "mqttBatteryPublish", value: "Published: ${batteryValue}% at ${new Date().format('HH:mm:ss')}")
-                } else {
-                    log.warn "MQTT not connected, skipping battery publish"
-                }
-            }
-        } else {
-            if (debugLogging) {
-                def reasons = []
-                if (!atHome) reasons.add("not at home")
-                if (!isPluggedIn) reasons.add("not plugged in (${plugStatus})")
-                if (batterySoC == null) reasons.add("battery SoC unavailable")
-                log.debug "🔋 MQTT: Not publishing - ${reasons.join(', ')}"
-            }
+            log.info "🔌 Connecting to MQTT broker: ${brokerUrl}"
+            interfaces.mqtt.connect(brokerUrl, clientId, mqttUsername, mqttPassword)
+            
+            // Give it a moment to connect
+            pauseExecution(1000)
         }
+        
+        // Publish the battery SoC
+        if (interfaces.mqtt.isConnected()) {
+            interfaces.mqtt.publish(mqttTopic, batteryValue, 1, true) // QoS 1, retained
+            log.info "🔋 MQTT: Published to ${mqttTopic} = ${batteryValue}% (vehicle at home and plugged in)"
+            
+            // Send a custom event for Rule Machine integration as well
+            sendEvent(name: "mqttBatteryPublish", value: batteryValue, descriptionText: "Battery SoC published to MQTT: ${batteryValue}%")
+        } else {
+            log.warn "Failed to connect to MQTT broker for publishing"
+        }
+        
     } catch (Exception e) {
         log.error "Failed to publish battery to MQTT: ${e.message}"
     }
 }
 
-// Handle MQTT messages and status
-def parse(String description) {
-    // This method handles both general parsing and MQTT messages
-    if (debugLogging) log.debug "parse() called with: ${description}"
-    
-    // Check if this is an MQTT message
-    if (description?.startsWith("MQTT:")) {
-        def message = interfaces.mqtt.parseMessage(description)
-        if (debugLogging) log.debug "MQTT message received: ${message.topic} = ${message.payload}"
-        // Handle incoming MQTT messages if needed
+// Required method for MQTT interface - handles connection status
+def mqttClientStatus(String message) {
+    if (message.startsWith("Error")) {
+        log.error "MQTT Client Error: ${message}"
+    } else {
+        if (debugLogging) log.debug "MQTT Client Status: ${message}"
     }
-}
-
-def mqttClientStatus(String status) {
-    if (debugLogging) log.debug "MQTT Status: ${status}"
-    
-    if (status.startsWith("Connection succeeded")) {
-        log.info "✅ MQTT connected to ${mqttBroker}"
-    } else if (status.startsWith("Connection lost") || status.startsWith("Connection failed")) {
-        log.warn "MQTT connection issue: ${status}"
-    }
-}
+} 
