@@ -25,9 +25,7 @@ metadata {
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
-        capability "ThermostatSetpoint"
-        capability "ThermostatCoolingSetpoint"
-        capability "ThermostatHeatingSetpoint"
+        capability "Thermostat"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -164,6 +162,18 @@ def initialize() {
     
     // Clear all existing schedules
     unschedule()
+    
+    // Set supported thermostat modes (Kia only supports auto and off)
+    sendEvent(name: "supportedThermostatModes", value: ["auto", "off"])
+    sendEvent(name: "supportedThermostatFanModes", value: ["auto"])
+    
+    // Initialize thermostat mode to off
+    if (!device.currentValue("thermostatMode")) {
+        sendEvent(name: "thermostatMode", value: "off")
+    }
+    if (!device.currentValue("thermostatFanMode")) {
+        sendEvent(name: "thermostatFanMode", value: "auto")
+    }
     
     // Schedule long-term polling if enabled
     if (longTermPollingHours && longTermPollingHours > 0) {
@@ -351,6 +361,68 @@ def setHeatingSetpoint(temperature) {
     setThermostatSetpoint(temperature)
 }
 
+// Thermostat capability commands for mode control
+def auto() {
+    log.info "Thermostat auto mode selected - starting climate control"
+    sendEvent(name: "thermostatMode", value: "auto")
+    StartClimate()
+}
+
+def off() {
+    log.info "Thermostat off mode selected - stopping climate control"
+    sendEvent(name: "thermostatMode", value: "off")
+    StopClimate()
+}
+
+def cool() {
+    log.warn "Cool mode not supported - Kia only supports auto and off. Starting climate in auto mode."
+    auto()
+}
+
+def heat() {
+    log.warn "Heat mode not supported - Kia only supports auto and off. Starting climate in auto mode."
+    auto()
+}
+
+def emergencyHeat() {
+    log.warn "Emergency heat not supported - Kia only supports auto and off. Starting climate in auto mode."
+    auto()
+}
+
+def setThermostatMode(mode) {
+    log.info "Setting thermostat mode to ${mode}"
+    
+    if (mode == "off") {
+        off()
+    } else if (mode == "auto") {
+        auto()
+    } else {
+        log.warn "Unsupported mode ${mode} - Kia only supports auto and off. Defaulting to auto."
+        auto()
+    }
+}
+
+// Thermostat capability commands for fan control
+def fanAuto() {
+    log.info "Fan auto mode selected (Kia only supports auto fan)"
+    sendEvent(name: "thermostatFanMode", value: "auto")
+}
+
+def fanOn() {
+    log.info "Fan on mode selected (Kia only supports auto fan)"
+    sendEvent(name: "thermostatFanMode", value: "auto")
+}
+
+def fanCirculate() {
+    log.info "Fan circulate mode selected (Kia only supports auto fan)"
+    sendEvent(name: "thermostatFanMode", value: "auto")
+}
+
+def setThermostatFanMode(fanMode) {
+    log.info "Setting thermostat fan mode to ${fanMode} (Kia only supports auto)"
+    sendEvent(name: "thermostatFanMode", value: "auto")
+}
+
 // ====================
 // STATUS UPDATES
 // ====================
@@ -402,11 +474,15 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'battery', value: value.toString())
                     }
                     else if (key == "AirControl") {
-                        // Map climate control status to Switch capability
+                        // Map climate control status to Switch capability and Thermostat mode
                         def switchValue = value.toString().toLowerCase().contains("on") || 
                                          value.toString().toLowerCase().contains("running") || 
                                          value.toString().toLowerCase().contains("active") ? "on" : "off"
                         sendEvent(name: 'switch', value: switchValue)
+                        
+                        // Update thermostat mode based on climate control status
+                        def thermostatMode = switchValue == "on" ? "auto" : "off"
+                        sendEvent(name: 'thermostatMode', value: thermostatMode)
                     }
                     else if (key == "AirTemp") {
                         // Map air temperature to thermostat setpoint (value is already numeric)
