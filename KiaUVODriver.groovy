@@ -209,7 +209,8 @@ def createClimateSwitch(dni, label) {
     if (child) {
         def currentState = child.currentValue("switch")
         if (!currentState || currentState == "unknown") {
-            child.off()
+            // Use parse() to properly set component device state
+            child.parse([[name: "switch", value: "off", descriptionText: "Initialized to off"]])
             log.info "Initialized climate switch to OFF (was: ${currentState})"
         }
     }
@@ -557,11 +558,15 @@ def StopCharge() {
 // Climate child device event handler (called when child switch changes)
 def componentOn(child) {
     log.info "Climate switch turned ON via child device"
+    // Update child device state immediately for UI feedback
+    child.parse([[name: "switch", value: "on", descriptionText: "Climate switch turned on"]])
     StartClimate()
 }
 
 def componentOff(child) {
     log.info "Climate switch turned OFF via child device"
+    // Update child device state immediately for UI feedback
+    child.parse([[name: "switch", value: "off", descriptionText: "Climate switch turned off"]])
     StopClimate()
 }
 
@@ -654,12 +659,12 @@ def updateVehicleStatus(Map statusData) {
                             
                             // If climate is confirmed ON and switch shows OFF, update to ON
                             if (climateOn && currentSwitch == "off") {
-                                climateSwitch.on()
+                                climateSwitch.parse([[name: "switch", value: "on", descriptionText: "Climate confirmed running"]])
                                 log.info "Climate confirmed running - switch updated to ON"
                             }
                             // If climate is confirmed OFF and switch shows ON, update to OFF
                             else if (!climateOn && currentSwitch == "on") {
-                                climateSwitch.off()
+                                climateSwitch.parse([[name: "switch", value: "off", descriptionText: "Climate confirmed stopped"]])
                                 log.info "Climate confirmed stopped - switch updated to OFF"
                             }
                             // Otherwise, leave switch state alone (user may have just triggered it)
