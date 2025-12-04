@@ -25,6 +25,7 @@ metadata {
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
+        capability "Thermostat"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -77,8 +78,14 @@ metadata {
         attribute "OutsideTemp", "string"
         attribute "AirControl", "string"
         
-        // Climate Control (temperature setpoint for configuration)
+        // Climate Control - Thermostat capability attributes
         attribute "thermostatSetpoint", "number"
+        attribute "heatingSetpoint", "number"
+        attribute "coolingSetpoint", "number"
+        attribute "thermostatMode", "enum", ["auto", "off"]
+        attribute "thermostatFanMode", "enum", ["auto", "on"]
+        attribute "supportedThermostatModes", "JSON_OBJECT"
+        attribute "supportedThermostatFanModes", "JSON_OBJECT"
 
         // Technical
         attribute "vehicleKey", "string"
@@ -99,6 +106,14 @@ metadata {
         command "StartClimate"
         command "StopClimate"
         command "setThermostatSetpoint", [[name: "temperature", type: "NUMBER"]]
+        command "setCoolingSetpoint", [[name: "temperature", type: "NUMBER"]]
+        command "setHeatingSetpoint", [[name: "temperature", type: "NUMBER"]]
+        command "auto"
+        command "off"
+        command "setThermostatMode", [[name: "mode", type: "ENUM"]]
+        command "fanAuto"
+        command "fanOn"
+        command "setThermostatFanMode", [[name: "fanmode", type: "ENUM"]]
         command "GetLocation"
         command "HornAndLights"
         command "StopHornAndLights"
@@ -283,6 +298,17 @@ def initialize() {
     
     // Clear all existing schedules
     unschedule()
+    
+    // Initialize thermostat attributes for dashboard compatibility
+    sendEvent(name: "thermostatMode", value: "off")
+    sendEvent(name: "thermostatFanMode", value: "auto")
+    sendEvent(name: "supportedThermostatModes", value: groovy.json.JsonOutput.toJson(["auto", "off"]))
+    sendEvent(name: "supportedThermostatFanModes", value: groovy.json.JsonOutput.toJson(["auto", "on"]))
+    if (!device.currentValue("thermostatSetpoint")) {
+        sendEvent(name: "thermostatSetpoint", value: 72)
+        sendEvent(name: "heatingSetpoint", value: 72)
+        sendEvent(name: "coolingSetpoint", value: 72)
+    }
     
     // Create climate child devices
     createClimateChildDevices()
@@ -472,6 +498,66 @@ def StopClimate() {
     parent.sendVehicleCommand(device, "stop")
 }
 
+// ====================
+// THERMOSTAT COMMANDS (for dashboard compatibility)
+// ====================
+
+def setThermostatSetpoint(temp) {
+    log.info "Setting thermostat setpoint to ${temp}°F"
+    sendEvent(name: "thermostatSetpoint", value: temp)
+    sendEvent(name: "heatingSetpoint", value: temp)
+    sendEvent(name: "coolingSetpoint", value: temp)
+}
+
+def setCoolingSetpoint(temp) {
+    log.info "Setting cooling setpoint to ${temp}°F"
+    sendEvent(name: "coolingSetpoint", value: temp)
+    sendEvent(name: "thermostatSetpoint", value: temp)
+}
+
+def setHeatingSetpoint(temp) {
+    log.info "Setting heating setpoint to ${temp}°F"
+    sendEvent(name: "heatingSetpoint", value: temp)
+    sendEvent(name: "thermostatSetpoint", value: temp)
+}
+
+def auto() {
+    log.info "Setting thermostat mode to auto - will start climate control"
+    sendEvent(name: "thermostatMode", value: "auto")
+    StartClimate()
+}
+
+def off() {
+    log.info "Setting thermostat mode to off - will stop climate control"
+    sendEvent(name: "thermostatMode", value: "off")
+    StopClimate()
+}
+
+def setThermostatMode(mode) {
+    log.info "Setting thermostat mode to ${mode}"
+    sendEvent(name: "thermostatMode", value: mode)
+    if (mode == "auto") {
+        StartClimate()
+    } else if (mode == "off") {
+        StopClimate()
+    }
+}
+
+def fanAuto() {
+    log.info "Setting fan mode to auto"
+    sendEvent(name: "thermostatFanMode", value: "auto")
+}
+
+def fanOn() {
+    log.info "Setting fan mode to on"
+    sendEvent(name: "thermostatFanMode", value: "on")
+}
+
+def setThermostatFanMode(fanmode) {
+    log.info "Setting fan mode to ${fanmode}"
+    sendEvent(name: "thermostatFanMode", value: fanmode)
+}
+
 def GetLocation() {
     log.info "Getting location for ${device.label}"
     parent.sendVehicleCommand(device, "location")
@@ -587,10 +673,12 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'switch', value: switchValue)
                     }
                     else if (key == "AirTemp") {
-                        // Map air temperature to thermostat setpoint attribute (value is already numeric)
+                        // Map air temperature to thermostat setpoint attributes (value is already numeric)
                         def numValue = value.toString().isNumber() ? value.toString() as Double : null
                         if (numValue != null) {
                             sendEvent(name: 'thermostatSetpoint', value: numValue)
+                            sendEvent(name: 'heatingSetpoint', value: numValue)
+                            sendEvent(name: 'coolingSetpoint', value: numValue)
                         }
                     }
                     else if (key == "DoorLocks") {
