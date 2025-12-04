@@ -1529,6 +1529,13 @@ def sendVehicleCommand(device, command, commandOptions = null, isRetry = false) 
     } catch (Exception e) {
         log.error "Vehicle command '${command}' failed for ${device.label}: ${e.message}"
         
+        // Notify device of command failure so it can update UI
+        try {
+            device.handleCommandFailure(command, e.message)
+        } catch (Exception notifyError) {
+            logDebug "Device doesn't support handleCommandFailure: ${notifyError.message}"
+        }
+        
         // Check if it's a session expiry error and retry once
         if (e.message?.contains("1003") || e.message?.contains("Session Key is either invalid or expired")) {
             log.warn "Session expired during command, re-authenticating..."
@@ -1664,7 +1671,15 @@ def handleVehicleCommandResponse(response, device, command, successMessage, isRe
     } else {
         def errorCode = reJson.status?.errorCode
         def errorMessage = reJson.status?.errorMessage
-        log.error "Vehicle command '${command}' failed for ${device.label}: Error ${errorCode} - ${errorMessage}"
+        def fullError = "Error ${errorCode} - ${errorMessage}"
+        log.error "Vehicle command '${command}' failed for ${device.label}: ${fullError}"
+        
+        // Notify device of command failure so it can update UI
+        try {
+            device.handleCommandFailure(command, fullError)
+        } catch (Exception e) {
+            logDebug "Device doesn't support handleCommandFailure: ${e.message}"
+        }
         
         // For location command, fallback to vehicle status if dedicated endpoint fails
         if (command == "location") {

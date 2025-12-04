@@ -526,6 +526,21 @@ def StopClimate() {
     parent.sendVehicleCommand(device, "stop")
 }
 
+// Called by parent app when a vehicle command fails
+def handleCommandFailure(command, errorMessage) {
+    log.error "Command '${command}' failed: ${errorMessage}"
+    
+    // If climate start command failed, revert the switch to OFF
+    if (command == "start") {
+        def vehicleId = device.deviceNetworkId
+        def climateSwitch = getChildDevice("${vehicleId}-climate-switch")
+        if (climateSwitch && climateSwitch.currentValue("switch") == "on") {
+            climateSwitch.sendEvent(name: "switch", value: "off")
+            log.warn "Reverted climate switch to OFF due to command failure"
+        }
+    }
+}
+
 def GetLocation() {
     log.info "Getting location for ${device.label}"
     parent.sendVehicleCommand(device, "location")
