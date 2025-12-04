@@ -209,16 +209,21 @@ def parseStatusResponse(data) {
         sendEvent(name: "power", value: power, unit: "kW")
     }
     
-    // Energy
+    // Energy - try multiple possible field names
     if (data.session_wh != null) {
         def sessionEnergy = (data.session_wh.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
     }
     
-    if (data.watthour != null) {
-        def totalEnergy = (data.watthour.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
+    // Total energy - try multiple possible field names (watthour, wh, total_energy)
+    def totalEnergyValue = data.watthour ?: data.wh ?: data.total_energy
+    if (totalEnergyValue != null) {
+        def totalEnergy = (totalEnergyValue.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
         sendEvent(name: "energy", value: totalEnergy)  // EnergyMeter capability
+    } else {
+        // Debug: log what fields are actually present
+        log.warn "Could not find energy field. Available fields: ${data.keySet()}"
     }
     
     // Session time

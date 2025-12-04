@@ -507,6 +507,8 @@ def setThermostatSetpoint(temp) {
     sendEvent(name: "thermostatSetpoint", value: temp)
     sendEvent(name: "heatingSetpoint", value: temp)
     sendEvent(name: "coolingSetpoint", value: temp)
+    // Also update the climate temp preference for use by StartClimate
+    device.updateSetting("climateTemp", temp as Integer)
 }
 
 def setCoolingSetpoint(temp) {
@@ -522,18 +524,23 @@ def setHeatingSetpoint(temp) {
 }
 
 def auto() {
-    log.info "Setting thermostat mode to auto (configuration only - use StartClimate command to start)"
+    log.info "Setting thermostat mode to auto (configuration only - use Switch ON to start climate)"
     sendEvent(name: "thermostatMode", value: "auto")
 }
 
 def off() {
-    log.info "Setting thermostat mode to off (configuration only - use StopClimate command to stop)"
+    log.info "Turning off climate control for ${device.label}"
     sendEvent(name: "thermostatMode", value: "off")
+    sendEvent(name: "switch", value: "off")
+    StopClimate()
 }
 
 def setThermostatMode(mode) {
     log.info "Setting thermostat mode to ${mode} (configuration only)"
     sendEvent(name: "thermostatMode", value: mode)
+    if (mode == "off") {
+        sendEvent(name: "switch", value: "off")
+    }
 }
 
 def fanAuto() {
@@ -582,15 +589,10 @@ def StopCharge() {
 
 // Switch capability commands (for climate control)
 def on() {
-    log.info "Turning on climate control for ${device.label} (Switch capability)"
+    log.info "Turning on climate control for ${device.label}"
     sendEvent(name: "switch", value: "on")
+    sendEvent(name: "thermostatMode", value: "auto")
     StartClimate()
-}
-
-def off() {
-    log.info "Turning off climate control for ${device.label} (Switch capability)"
-    sendEvent(name: "switch", value: "off")
-    StopClimate()
 }
 
 // Lock capability commands (for door locks)
@@ -602,17 +604,6 @@ def lock() {
 def unlock() {
     log.info "Unlocking ${device.label} (Lock capability)"
     Unlock()
-}
-
-// Temperature setpoint command (for climate temperature configuration)
-def setThermostatSetpoint(temperature) {
-    log.info "Setting climate temperature to ${temperature}°F for ${device.label}"
-    
-    // Update the climate temperature setting
-    device.updateSetting("climateTemp", temperature as Integer)
-    
-    // Update the thermostat setpoint attribute
-    sendEvent(name: "thermostatSetpoint", value: temperature)
 }
 
 // ====================
