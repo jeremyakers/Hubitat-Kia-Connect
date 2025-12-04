@@ -43,6 +43,10 @@ metadata {
         attribute "maxCurrent", "number"  // Max available amps
         attribute "sessionEnergy", "number"  // kWh for current session
         attribute "totalEnergy", "number"  // Total lifetime kWh
+        attribute "totalDay", "number"  // Total kWh today
+        attribute "totalWeek", "number"  // Total kWh this week
+        attribute "totalMonth", "number"  // Total kWh this month
+        attribute "totalYear", "number"  // Total kWh this year
         attribute "sessionTime", "number"  // Minutes for current session
         attribute "temperature", "number"  // °C
         
@@ -209,21 +213,38 @@ def parseStatusResponse(data) {
         sendEvent(name: "power", value: power, unit: "kW")
     }
     
-    // Energy - try multiple possible field names
-    if (data.session_wh != null) {
-        def sessionEnergy = (data.session_wh.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
+    // Energy - session_energy is in Wh, total_energy is already in kWh
+    if (data.session_energy != null) {
+        def sessionEnergy = (data.session_energy.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
     }
     
-    // Total energy - try multiple possible field names (watthour, wh, total_energy)
-    def totalEnergyValue = data.watthour ?: data.wh ?: data.total_energy
-    if (totalEnergyValue != null) {
-        def totalEnergy = (totalEnergyValue.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
+    // Total energy is already in kWh according to API docs
+    if (data.total_energy != null) {
+        def totalEnergy = data.total_energy.toFloat().round(2)  // Already in kWh, just round to 2 decimal places
         sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
         sendEvent(name: "energy", value: totalEnergy)  // EnergyMeter capability
-    } else {
-        // Debug: log what fields are actually present
-        log.warn "Could not find energy field. Available fields: ${data.keySet()}"
+    }
+    
+    // Energy totals by period (all in kWh)
+    if (data.total_day != null) {
+        def totalDay = data.total_day.toFloat().round(2)
+        sendEvent(name: "totalDay", value: totalDay, unit: "kWh")
+    }
+    
+    if (data.total_week != null) {
+        def totalWeek = data.total_week.toFloat().round(2)
+        sendEvent(name: "totalWeek", value: totalWeek, unit: "kWh")
+    }
+    
+    if (data.total_month != null) {
+        def totalMonth = data.total_month.toFloat().round(2)
+        sendEvent(name: "totalMonth", value: totalMonth, unit: "kWh")
+    }
+    
+    if (data.total_year != null) {
+        def totalYear = data.total_year.toFloat().round(2)
+        sendEvent(name: "totalYear", value: totalYear, unit: "kWh")
     }
     
     // Session time
@@ -351,8 +372,12 @@ def mqttClientStatus(String status) {
         interfaces.mqtt.subscribe("${baseTopic}/voltage")
         interfaces.mqtt.subscribe("${baseTopic}/pilot")
         interfaces.mqtt.subscribe("${baseTopic}/temp")
-        interfaces.mqtt.subscribe("${baseTopic}/session_wh")
-        interfaces.mqtt.subscribe("${baseTopic}/watthour")
+        interfaces.mqtt.subscribe("${baseTopic}/session_energy")
+        interfaces.mqtt.subscribe("${baseTopic}/total_energy")
+        interfaces.mqtt.subscribe("${baseTopic}/total_day")
+        interfaces.mqtt.subscribe("${baseTopic}/total_week")
+        interfaces.mqtt.subscribe("${baseTopic}/total_month")
+        interfaces.mqtt.subscribe("${baseTopic}/total_year")
         interfaces.mqtt.subscribe("${baseTopic}/elapsed")
         
         log.info "✅ MQTT connected and subscribed to ${baseTopic}/# topics"
@@ -424,15 +449,35 @@ def parse(String description) {
             sendEvent(name: "temperature", value: tempCelsius, unit: "°C")
             break
             
-        case "session_wh":
+        case "session_energy":
             def sessionEnergy = (value.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
             sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
             break
             
-        case "watthour":
-            def totalEnergy = (value.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
+        case "total_energy":
+            def totalEnergy = value.toFloat().round(2)  // Already in kWh, just round to 2 decimal places
             sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
             sendEvent(name: "energy", value: totalEnergy)
+            break
+            
+        case "total_day":
+            def totalDay = value.toFloat().round(2)  // Already in kWh
+            sendEvent(name: "totalDay", value: totalDay, unit: "kWh")
+            break
+            
+        case "total_week":
+            def totalWeek = value.toFloat().round(2)  // Already in kWh
+            sendEvent(name: "totalWeek", value: totalWeek, unit: "kWh")
+            break
+            
+        case "total_month":
+            def totalMonth = value.toFloat().round(2)  // Already in kWh
+            sendEvent(name: "totalMonth", value: totalMonth, unit: "kWh")
+            break
+            
+        case "total_year":
+            def totalYear = value.toFloat().round(2)  // Already in kWh
+            sendEvent(name: "totalYear", value: totalYear, unit: "kWh")
             break
             
         case "elapsed":
@@ -507,6 +552,10 @@ def updateStatusHtml() {
     def sessionTime = device.currentValue("sessionTime") ?: 0
     def temperature = device.currentValue("temperature") ?: "N/A"
     def maxCurrent = device.currentValue("maxCurrent") ?: 0
+    def totalDay = device.currentValue("totalDay") ?: 0
+    def totalWeek = device.currentValue("totalWeek") ?: 0
+    def totalMonth = device.currentValue("totalMonth") ?: 0
+    def totalYear = device.currentValue("totalYear") ?: 0
     
     // Format numeric values to 2 decimal places
     def powerStr = power instanceof Number ? sprintf("%.2f", power) : power
@@ -516,6 +565,10 @@ def updateStatusHtml() {
     def currentStr = current instanceof Number ? sprintf("%.1f", current) : current
     def maxCurrentStr = maxCurrent instanceof Number ? sprintf("%.1f", maxCurrent) : maxCurrent
     def temperatureStr = temperature instanceof Number ? sprintf("%.1f", temperature) : temperature
+    def totalDayStr = totalDay instanceof Number ? sprintf("%.2f", totalDay) : totalDay
+    def totalWeekStr = totalWeek instanceof Number ? sprintf("%.2f", totalWeek) : totalWeek
+    def totalMonthStr = totalMonth instanceof Number ? sprintf("%.2f", totalMonth) : totalMonth
+    def totalYearStr = totalYear instanceof Number ? sprintf("%.2f", totalYear) : totalYear
     
     // Status color
     def stateColor = "#6c757d"  // gray default
@@ -553,6 +606,11 @@ def updateStatusHtml() {
     html += """
                 <tr><td style="padding: 2px; font-weight: bold;">Max Current:</td><td style="padding: 2px;">${maxCurrentStr} A</td></tr>
                 <tr><td style="padding: 2px; font-weight: bold;">Temperature:</td><td style="padding: 2px;">${temperatureStr}°C</td></tr>
+                <tr><td colspan="2" style="padding: 6px 2px 2px 2px; font-weight: bold; color: #1f77b4;">Energy Totals</td></tr>
+                <tr><td style="padding: 2px; padding-left: 10px;">Today:</td><td style="padding: 2px;">${totalDayStr} kWh</td></tr>
+                <tr><td style="padding: 2px; padding-left: 10px;">This Week:</td><td style="padding: 2px;">${totalWeekStr} kWh</td></tr>
+                <tr><td style="padding: 2px; padding-left: 10px;">This Month:</td><td style="padding: 2px;">${totalMonthStr} kWh</td></tr>
+                <tr><td style="padding: 2px; padding-left: 10px;">This Year:</td><td style="padding: 2px;">${totalYearStr} kWh</td></tr>
             </table>
         </div>
     """
