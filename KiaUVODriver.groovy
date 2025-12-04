@@ -522,25 +522,18 @@ def setHeatingSetpoint(temp) {
 }
 
 def auto() {
-    log.info "Setting thermostat mode to auto - will start climate control"
+    log.info "Setting thermostat mode to auto (configuration only - use StartClimate command to start)"
     sendEvent(name: "thermostatMode", value: "auto")
-    StartClimate()
 }
 
 def off() {
-    log.info "Setting thermostat mode to off - will stop climate control"
+    log.info "Setting thermostat mode to off (configuration only - use StopClimate command to stop)"
     sendEvent(name: "thermostatMode", value: "off")
-    StopClimate()
 }
 
 def setThermostatMode(mode) {
-    log.info "Setting thermostat mode to ${mode}"
+    log.info "Setting thermostat mode to ${mode} (configuration only)"
     sendEvent(name: "thermostatMode", value: mode)
-    if (mode == "auto") {
-        StartClimate()
-    } else if (mode == "off") {
-        StopClimate()
-    }
 }
 
 def fanAuto() {
