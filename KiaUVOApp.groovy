@@ -1531,9 +1531,10 @@ def sendVehicleCommand(device, command, commandOptions = null, isRetry = false) 
         
         // Notify device of command failure so it can update UI
         try {
+            log.warn "Calling device.handleCommandFailure for command: ${command}"
             device.handleCommandFailure(command, e.message)
         } catch (Exception notifyError) {
-            logDebug "Device doesn't support handleCommandFailure: ${notifyError.message}"
+            log.warn "Device doesn't support handleCommandFailure or error calling it: ${notifyError.message}"
         }
         
         // Check if it's a session expiry error and retry once
@@ -1684,9 +1685,10 @@ def handleVehicleCommandResponse(response, device, command, successMessage, isRe
         
         // Notify device of command failure so it can update UI (only if not retrying)
         try {
+            log.warn "Calling device.handleCommandFailure for command: ${command}"
             device.handleCommandFailure(command, fullError)
         } catch (Exception e) {
-            logDebug "Device doesn't support handleCommandFailure: ${e.message}"
+            log.warn "Device doesn't support handleCommandFailure or error calling it: ${e.message}"
         }
         
         // For location command, fallback to vehicle status if dedicated endpoint fails
