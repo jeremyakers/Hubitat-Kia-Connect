@@ -174,6 +174,9 @@ def createClimateChildDevices() {
     // Create climate on/off switch as a component
     createClimateSwitch("${vehicleId}-climate-switch", "Climate Control")
     
+    // Create climate temperature variable as a component
+    createClimateVariable("${vehicleId}-climate-temp", "Climate Temperature")
+    
     // Create defrost and steering controls
     createChildSwitch("${vehicleId}-defrost-front", "Front Defrost")
     createChildSwitch("${vehicleId}-defrost-rear", "Rear Defrost")
@@ -202,6 +205,25 @@ def createClimateSwitch(dni, label) {
             log.info "Created climate switch child device: ${label}"
         } catch (Exception e) {
             log.error "Failed to create climate switch ${label}: ${e.message}"
+        }
+    }
+    return child
+}
+
+def createClimateVariable(dni, label) {
+    def child = getChildDevice(dni)
+    if (!child) {
+        try {
+            child = addChildDevice("kia-uvo", "Generic Variable Child", dni, 
+                [name: "Generic Variable Child", label: "${device.label} - ${label}", isComponent: true])
+            
+            // Set initial value from parent's variable or default
+            def initialTemp = device.currentValue("variable") ?: device.currentValue("climateTemperature")?.toString() ?: "72"
+            child.setVariable(initialTemp)
+            
+            log.info "Created climate variable child device: ${label}"
+        } catch (Exception e) {
+            log.error "Failed to create climate variable ${label}: ${e.message}"
         }
     }
     return child
@@ -557,6 +579,23 @@ def componentOff(child) {
     StopClimate()
 }
 
+// Climate temperature variable event handler (called when child variable changes)
+def componentVariableChanged(child, value) {
+    log.info "Climate temperature changed via child device to: ${value}"
+    
+    // Update parent's variable attribute
+    sendEvent(name: "variable", value: value)
+    
+    // Parse to number and store as climateTemperature
+    def temp = value.toString().isNumber() ? value.toString() as Integer : 72
+    sendEvent(name: "climateTemperature", value: temp)
+    
+    // Also update the climate temp preference for StartClimate to use
+    device.updateSetting("climateTemp", temp)
+    
+    log.info "Climate temperature set to ${temp}°F"
+}
+
 // Lock capability commands (for door locks)
 def lock() {
     log.info "Locking ${device.label} (Lock capability)"
@@ -650,6 +689,13 @@ def updateVehicleStatus(Map statusData) {
                             def intValue = numValue as Integer
                             sendEvent(name: 'variable', value: intValue.toString())
                             sendEvent(name: 'climateTemperature', value: intValue)
+                            
+                            // Also update the child variable device
+                            def vehicleId = device.deviceNetworkId
+                            def tempChild = getChildDevice("${vehicleId}-climate-temp")
+                            if (tempChild) {
+                                tempChild.setVariable(intValue.toString())
+                            }
                         }
                     }
                     else if (key == "DoorLocks") {
