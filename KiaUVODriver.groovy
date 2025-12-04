@@ -119,7 +119,7 @@ metadata {
         
         // Auto-refresh after commands
         input name: "autoRefreshAfterCommands", type: "bool", title: "Auto-refresh vehicle status after commands", defaultValue: true
-        input name: "refreshDelaySeconds", type: "number", title: "Time to wait after sending command before auto-refresh (seconds)", defaultValue: 5, range: "1..30"
+        input name: "refreshDelaySeconds", type: "number", title: "Time to wait after sending command before auto-refresh (seconds)", defaultValue: 30, range: "10..120", description: "Climate commands typically take 30-60 seconds for vehicle to respond"
         
         // Climate control settings
         input name: "useDetailedClimate", type: "bool", title: "Enable heated/cooled seat control", description: "Turn OFF if your vehicle doesn't support heated/cooled seats via API (e.g., EV6 2022). Note: Heated steering wheel and defrost work on all vehicles.", defaultValue: false
