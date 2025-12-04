@@ -25,7 +25,7 @@ metadata {
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
-        capability "Thermostat"
+        capability "Variable"
 
         // Vehicle Information
         attribute "NickName", "string"
@@ -78,14 +78,9 @@ metadata {
         attribute "OutsideTemp", "string"
         attribute "AirControl", "string"
         
-        // Climate Control - Thermostat capability attributes
-        attribute "thermostatSetpoint", "number"
-        attribute "heatingSetpoint", "number"
-        attribute "coolingSetpoint", "number"
-        attribute "thermostatMode", "enum", ["auto", "off"]
-        attribute "thermostatFanMode", "enum", ["auto", "on"]
-        attribute "supportedThermostatModes", "JSON_OBJECT"
-        attribute "supportedThermostatFanModes", "JSON_OBJECT"
+        // Climate Control - Variable capability for temperature (dashboard configurable)
+        attribute "variable", "string"  // Temperature as string for Variable capability
+        attribute "climateTemperature", "number"  // Parsed numeric temperature
 
         // Technical
         attribute "vehicleKey", "string"
@@ -105,15 +100,7 @@ metadata {
         command "Unlock" 
         command "StartClimate"
         command "StopClimate"
-        command "setThermostatSetpoint", [[name: "temperature", type: "NUMBER"]]
-        command "setCoolingSetpoint", [[name: "temperature", type: "NUMBER"]]
-        command "setHeatingSetpoint", [[name: "temperature", type: "NUMBER"]]
-        command "auto"
-        command "off"
-        command "setThermostatMode", [[name: "mode", type: "ENUM"]]
-        command "fanAuto"
-        command "fanOn"
-        command "setThermostatFanMode", [[name: "fanmode", type: "ENUM"]]
+        command "setVariable", [[name: "valueToSet", type: "STRING"]]  // For temperature via Variable capability
         command "GetLocation"
         command "HornAndLights"
         command "StopHornAndLights"
@@ -299,15 +286,10 @@ def initialize() {
     // Clear all existing schedules
     unschedule()
     
-    // Initialize thermostat attributes for dashboard compatibility
-    sendEvent(name: "thermostatMode", value: "off")
-    sendEvent(name: "thermostatFanMode", value: "auto")
-    sendEvent(name: "supportedThermostatModes", value: groovy.json.JsonOutput.toJson(["auto", "off"]))
-    sendEvent(name: "supportedThermostatFanModes", value: groovy.json.JsonOutput.toJson(["auto", "on"]))
-    if (!device.currentValue("thermostatSetpoint")) {
-        sendEvent(name: "thermostatSetpoint", value: 72)
-        sendEvent(name: "heatingSetpoint", value: 72)
-        sendEvent(name: "coolingSetpoint", value: 72)
+    // Initialize climate temperature variable (default 72°F)
+    if (!device.currentValue("variable") || !device.currentValue("climateTemperature")) {
+        sendEvent(name: "variable", value: "72")
+        sendEvent(name: "climateTemperature", value: 72)
     }
     
     // Create climate child devices
@@ -499,63 +481,23 @@ def StopClimate() {
 }
 
 // ====================
-// THERMOSTAT COMMANDS (for dashboard compatibility)
+// VARIABLE COMMAND (for temperature configuration via dashboard)
 // ====================
 
-def setThermostatSetpoint(temp) {
-    log.info "Setting thermostat setpoint to ${temp}°F"
-    sendEvent(name: "thermostatSetpoint", value: temp)
-    sendEvent(name: "heatingSetpoint", value: temp)
-    sendEvent(name: "coolingSetpoint", value: temp)
-    // Also update the climate temp preference for use by StartClimate
-    device.updateSetting("climateTemp", temp as Integer)
-}
-
-def setCoolingSetpoint(temp) {
-    log.info "Setting cooling setpoint to ${temp}°F"
-    sendEvent(name: "coolingSetpoint", value: temp)
-    sendEvent(name: "thermostatSetpoint", value: temp)
-}
-
-def setHeatingSetpoint(temp) {
-    log.info "Setting heating setpoint to ${temp}°F"
-    sendEvent(name: "heatingSetpoint", value: temp)
-    sendEvent(name: "thermostatSetpoint", value: temp)
-}
-
-def auto() {
-    log.info "Setting thermostat mode to auto (configuration only - use Switch ON to start climate)"
-    sendEvent(name: "thermostatMode", value: "auto")
-}
-
-def off() {
-    log.info "Turning off climate control for ${device.label}"
-    sendEvent(name: "thermostatMode", value: "off")
-    sendEvent(name: "switch", value: "off")
-    StopClimate()
-}
-
-def setThermostatMode(mode) {
-    log.info "Setting thermostat mode to ${mode} (configuration only)"
-    sendEvent(name: "thermostatMode", value: mode)
-    if (mode == "off") {
-        sendEvent(name: "switch", value: "off")
-    }
-}
-
-def fanAuto() {
-    log.info "Setting fan mode to auto"
-    sendEvent(name: "thermostatFanMode", value: "auto")
-}
-
-def fanOn() {
-    log.info "Setting fan mode to on"
-    sendEvent(name: "thermostatFanMode", value: "on")
-}
-
-def setThermostatFanMode(fanmode) {
-    log.info "Setting fan mode to ${fanmode}"
-    sendEvent(name: "thermostatFanMode", value: fanmode)
+def setVariable(valueToSet) {
+    log.info "Setting climate temperature variable to: ${valueToSet}"
+    
+    // Store the raw string value for Variable capability
+    sendEvent(name: "variable", value: valueToSet)
+    
+    // Parse to number and store as climateTemperature
+    def temp = valueToSet.toString().isNumber() ? valueToSet.toString() as Integer : 72
+    sendEvent(name: "climateTemperature", value: temp)
+    
+    // Also update the climate temp preference for StartClimate to use
+    device.updateSetting("climateTemp", temp)
+    
+    log.info "Climate temperature set to ${temp}°F"
 }
 
 def GetLocation() {
@@ -591,8 +533,13 @@ def StopCharge() {
 def on() {
     log.info "Turning on climate control for ${device.label}"
     sendEvent(name: "switch", value: "on")
-    sendEvent(name: "thermostatMode", value: "auto")
     StartClimate()
+}
+
+def off() {
+    log.info "Turning off climate control for ${device.label}"
+    sendEvent(name: "switch", value: "off")
+    StopClimate()
 }
 
 // Lock capability commands (for door locks)
@@ -664,12 +611,12 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'switch', value: switchValue)
                     }
                     else if (key == "AirTemp") {
-                        // Map air temperature to thermostat setpoint attributes (value is already numeric)
+                        // Map air temperature to climate temperature variable
                         def numValue = value.toString().isNumber() ? value.toString() as Double : null
                         if (numValue != null) {
-                            sendEvent(name: 'thermostatSetpoint', value: numValue)
-                            sendEvent(name: 'heatingSetpoint', value: numValue)
-                            sendEvent(name: 'coolingSetpoint', value: numValue)
+                            def intValue = numValue as Integer
+                            sendEvent(name: 'variable', value: intValue.toString())
+                            sendEvent(name: 'climateTemperature', value: intValue)
                         }
                     }
                     else if (key == "DoorLocks") {
