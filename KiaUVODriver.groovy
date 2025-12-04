@@ -583,7 +583,14 @@ def StopCharge() {
 // Switch capability commands (for climate control)
 def on() {
     log.info "Turning on climate control for ${device.label} (Switch capability)"
+    sendEvent(name: "switch", value: "on")
     StartClimate()
+}
+
+def off() {
+    log.info "Turning off climate control for ${device.label} (Switch capability)"
+    sendEvent(name: "switch", value: "off")
+    StopClimate()
 }
 
 // Lock capability commands (for door locks)

@@ -431,7 +431,7 @@ def parse(String description) {
             break
             
         case "elapsed":
-            def sessionMinutes = (value.toInteger() / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
+            def sessionMinutes = (value.toFloat() / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
             sendEvent(name: "sessionTime", value: sessionMinutes, unit: "min")
             break
     }
