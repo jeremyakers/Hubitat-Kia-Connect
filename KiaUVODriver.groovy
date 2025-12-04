@@ -213,18 +213,8 @@ def createSteeringWheelControl(dni) {
             log.info "Created steering wheel control"
         } catch (Exception e) {
             log.error "Failed to create steering wheel control: ${e.message}"
-            return null
         }
     }
-    
-    // Set supported speeds based on vehicle model (do this every time in case model year was updated)
-    if (child) {
-        def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
-        def supportedSpeeds = (modelYear >= 2024) ? ["off", "low", "high"] : ["off", "on"]
-        child.sendEvent(name: "supportedFanSpeeds", value: groovy.json.JsonOutput.toJson(supportedSpeeds))
-        log.info "Set steering wheel supported speeds: ${supportedSpeeds} (model year: ${modelYear})"
-    }
-    
     return child
 }
 
@@ -405,9 +395,10 @@ def StartClimate() {
     def rearDefrost = getChildDevice("${vehicleId}-defrost-rear")?.currentValue("switch") == "on"
     def defrost = frontDefrost || rearDefrost
     
-    // Read steering wheel fan speed
+    // Read steering wheel fan speed and map to vehicle capabilities
     def steeringChild = getChildDevice("${vehicleId}-steering")
-    def heatedSteering = steeringChild?.currentValue("speed") ?: "off"
+    def rawSpeed = steeringChild?.currentValue("speed") ?: "off"
+    def heatedSteering = mapSteeringWheelSpeed(rawSpeed)
     
     // Build seat settings from child devices
     def seatSettings = [:]
@@ -418,7 +409,7 @@ def StartClimate() {
         seatSettings.rearRight = getSeatSettingFromChild("${vehicleId}-seat-rear-right")
     }
     
-    log.info "Starting climate: ${temp}°F, ${duration}min, defrost:${defrost}, steering:${heatedSteering}"
+    log.info "Starting climate: ${temp}°F, ${duration}min, defrost:${defrost}, steering:${heatedSteering} (raw: ${rawSpeed})"
     log.debug "Seat settings: ${seatSettings}"
     
     parent.sendVehicleCommand(device, "start", [
@@ -428,6 +419,37 @@ def StartClimate() {
         heatedSteering: heatedSteering,
         seats: seatSettings
     ])
+}
+
+def mapSteeringWheelSpeed(speed) {
+    // Map dashboard fan speeds to vehicle capabilities
+    def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
+    def supportsLevels = (modelYear >= 2024) // 2024+ supports off/low/high
+    
+    if (speed == "off") {
+        return "off"
+    }
+    
+    if (!supportsLevels) {
+        // 2022-2023: Only supports on/off - map everything non-off to "on"
+        return "on"
+    }
+    
+    // 2024+: Map to low/high based on user selection
+    switch(speed) {
+        case "low":
+        case "medium-low":
+            return "low"
+        case "medium":
+        case "medium-high":
+        case "high":
+        case "auto":
+            return "high"
+        case "on":
+            return "high" // Default "on" to high for 2024+ models
+        default:
+            return "off"
+    }
 }
 
 
