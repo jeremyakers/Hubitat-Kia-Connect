@@ -1774,7 +1774,7 @@ def retryVehicleStatusRefresh(data) {
 def buildClimateRequestBody(temp, duration, defrost, heatedSteering, seatSettings) {
     def json = '{'
     json += '"remoteClimate": {'
-    json += '"airTemp": {"unit": 1, "value": ' + temp + '},'
+    json += '"airTemp": {"unit": 1, "value": "' + temp + '"},'
     json += '"airCtrl": true,'
     json += '"defrost": ' + defrost + ','
     json += '"heatingAccessory": {'
