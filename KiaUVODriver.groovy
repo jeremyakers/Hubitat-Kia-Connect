@@ -440,7 +440,7 @@ def Unlock() {
 }
 
 def StartClimate() {
-    def temp = device.currentValue("thermostatSetpoint") ?: device.getSetting("climateTemp") ?: 72
+    def temp = device.currentValue("climateTemperature") ?: device.getSetting("climateTemp") ?: 72
     def duration = device.getSetting("climateDuration") ?: 10
     def vehicleId = device.deviceNetworkId
     
