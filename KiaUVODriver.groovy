@@ -468,6 +468,7 @@ def StartClimate() {
     
     log.info "Starting climate: ${temp}°F, ${duration}min, defrost:${defrost}, steering:${heatedSteering} (raw: ${rawSpeed})"
     log.debug "Seat settings: ${seatSettings}"
+    log.debug "Sending command for device: ${device.id} (${device.label})"
     
     parent.sendVehicleCommand(device, "start", [
         temperature: temp,
