@@ -205,10 +205,13 @@ def createClimateSwitch(dni, label) {
         }
     }
     
-    // Initialize switch state if not already set
-    if (child && !child.currentValue("switch")) {
-        child.off()
-        log.debug "Initialized climate switch to OFF"
+    // Initialize or fix switch state if not properly set
+    if (child) {
+        def currentState = child.currentValue("switch")
+        if (!currentState || currentState == "unknown") {
+            child.off()
+            log.info "Initialized climate switch to OFF (was: ${currentState})"
+        }
     }
     
     return child
