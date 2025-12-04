@@ -604,11 +604,25 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'battery', value: value.toString())
                     }
                     else if (key == "AirControl") {
-                        // Map climate control status to Switch capability
-                        def switchValue = value.toString().toLowerCase().contains("on") || 
-                                         value.toString().toLowerCase().contains("running") || 
-                                         value.toString().toLowerCase().contains("active") ? "on" : "off"
-                        sendEvent(name: 'switch', value: switchValue)
+                        // Update switch state based on actual climate status from vehicle
+                        // Only update if status has meaningfully changed to avoid overwriting user-initiated state
+                        def climateOn = value.toString().toLowerCase().contains("on") || 
+                                       value.toString().toLowerCase().contains("running") || 
+                                       value.toString().toLowerCase().contains("active")
+                        
+                        def currentSwitch = device.currentValue("switch")
+                        
+                        // If climate is confirmed ON and switch shows OFF, update to ON
+                        if (climateOn && currentSwitch == "off") {
+                            sendEvent(name: 'switch', value: "on")
+                            log.info "Climate confirmed running - switch updated to ON"
+                        }
+                        // If climate is confirmed OFF and switch shows ON, update to OFF
+                        else if (!climateOn && currentSwitch == "on") {
+                            sendEvent(name: 'switch', value: "off")
+                            log.info "Climate confirmed stopped - switch updated to OFF"
+                        }
+                        // Otherwise, leave switch state alone (user may have just triggered it)
                     }
                     else if (key == "AirTemp") {
                         // Map air temperature to climate temperature variable
