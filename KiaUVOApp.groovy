@@ -1674,7 +1674,15 @@ def handleVehicleCommandResponse(response, device, command, successMessage, isRe
         def fullError = "Error ${errorCode} - ${errorMessage}"
         log.error "Vehicle command '${command}' failed for ${device.label}: ${fullError}"
         
-        // Notify device of command failure so it can update UI
+        // Check for error 1125 (another command in progress) and retry after delay
+        if (errorCode == 1125 && !isRetry) {
+            log.warn "Another command in progress (Error 1125), will retry ${command} in 5 seconds..."
+            // Don't notify device of failure yet - we're going to retry
+            runIn(5, "retryVehicleCommand", [data: [deviceNetworkId: device.deviceNetworkId, command: command, commandOptions: commandOptions]])
+            return // Don't notify device of failure since we're retrying
+        }
+        
+        // Notify device of command failure so it can update UI (only if not retrying)
         try {
             device.handleCommandFailure(command, fullError)
         } catch (Exception e) {
@@ -1705,7 +1713,7 @@ def handleVehicleCommandResponse(response, device, command, successMessage, isRe
                 // Refresh vehicle discovery to get updated vehicle keys for the new session
                 discoverVehicles()
                 // Give the device data update a moment to complete, then retry
-                runIn(2, "retryVehicleCommand", [data: [deviceNetworkId: device.deviceNetworkId, command: command]])
+                runIn(2, "retryVehicleCommand", [data: [deviceNetworkId: device.deviceNetworkId, command: command, commandOptions: commandOptions]])
             } else {
                 log.error "Re-authentication failed after session expiry"
             }
@@ -1745,7 +1753,7 @@ def retryVehicleCommand(data) {
     log.info "Retrying vehicle command '${data.command}' with fresh vehicle keys..."
     def device = getChildDevice(data.deviceNetworkId)
     if (device) {
-        sendVehicleCommand(device, data.command, null, true)
+        sendVehicleCommand(device, data.command, data.commandOptions, true)
     } else {
         log.error "Device not found for retry: ${data.deviceNetworkId}"
     }
