@@ -445,7 +445,7 @@ def StartClimate() {
     def duration = device.getSetting("climateDuration") ?: 10
     def vehicleId = device.deviceNetworkId
     
-    log.debug "StartClimate: temp=${temp} (type: ${temp?.getClass()?.name}), duration=${duration}"
+    log.debug "StartClimate: temp=${temp}, duration=${duration}"
     
     // Read defrost switches
     def frontDefrost = getChildDevice("${vehicleId}-defrost-front")?.currentValue("switch") == "on"
