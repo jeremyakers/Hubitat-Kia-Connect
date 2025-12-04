@@ -207,8 +207,8 @@ def createSteeringWheelControl(dni) {
     def child = getChildDevice(dni)
     if (!child) {
         try {
-            child = addChildDevice("hubitat", "Virtual Fan Controller", dni,
-                [name: "Virtual Fan Controller", label: "${device.label} - Heated Steering Wheel", isComponent: false])
+            child = addChildDevice("kia-uvo", "Kia Climate Steering Wheel Control", dni,
+                [name: "Kia Climate Steering Wheel Control", label: "${device.label} - Heated Steering Wheel", isComponent: false])
             child.setSpeed("off")
             log.info "Created steering wheel control"
         } catch (Exception e) {
