@@ -202,18 +202,18 @@ def parseStatusResponse(data) {
     
     // Power calculation (if we have both current and voltage)
     if (data.amp != null && data.voltage != null) {
-        def power = (data.amp * data.voltage) / 1000  // Convert to kW
+        def power = ((data.amp * data.voltage) / 1000).round(2)  // Convert to kW and round to 2 decimal places
         sendEvent(name: "power", value: power, unit: "kW")
     }
     
     // Energy
     if (data.session_wh != null) {
-        def sessionEnergy = data.session_wh / 1000  // Convert Wh to kWh
+        def sessionEnergy = (data.session_wh / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
     }
     
     if (data.watthour != null) {
-        def totalEnergy = data.watthour / 1000  // Convert Wh to kWh
+        def totalEnergy = (data.watthour / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
         sendEvent(name: "energy", value: totalEnergy)  // EnergyMeter capability
     }
@@ -226,7 +226,8 @@ def parseStatusResponse(data) {
     
     // Temperature
     if (data.temp != null) {
-        sendEvent(name: "temperature", value: data.temp, unit: "°C")
+        def tempCelsius = (data.temp / 10).round(2)  // Convert deci-degrees to Celsius and round to 2 decimal places
+        sendEvent(name: "temperature", value: tempCelsius, unit: "°C")
     }
     
     // Update HTML status display
@@ -408,16 +409,17 @@ def parse(String description) {
             break
             
         case "temp":
-            sendEvent(name: "temperature", value: value.toFloat(), unit: "°C")
+            def tempCelsius = (value.toFloat() / 10).round(2)  // Convert deci-degrees to Celsius and round to 2 decimal places
+            sendEvent(name: "temperature", value: tempCelsius, unit: "°C")
             break
             
         case "session_wh":
-            def sessionEnergy = value.toFloat() / 1000
+            def sessionEnergy = (value.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
             sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
             break
             
         case "watthour":
-            def totalEnergy = value.toFloat() / 1000
+            def totalEnergy = (value.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
             sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
             sendEvent(name: "energy", value: totalEnergy)
             break
@@ -495,6 +497,15 @@ def updateStatusHtml() {
     def temperature = device.currentValue("temperature") ?: "N/A"
     def maxCurrent = device.currentValue("maxCurrent") ?: 0
     
+    // Format numeric values to 2 decimal places
+    def powerStr = power instanceof Number ? sprintf("%.2f", power) : power
+    def sessionEnergyStr = sessionEnergy instanceof Number ? sprintf("%.2f", sessionEnergy) : sessionEnergy
+    def sessionTimeStr = sessionTime instanceof Number ? sprintf("%.1f", sessionTime) : sessionTime
+    def voltageStr = voltage instanceof Number ? sprintf("%.1f", voltage) : voltage
+    def currentStr = current instanceof Number ? sprintf("%.1f", current) : current
+    def maxCurrentStr = maxCurrent instanceof Number ? sprintf("%.1f", maxCurrent) : maxCurrent
+    def temperatureStr = temperature instanceof Number ? sprintf("%.1f", temperature) : temperature
+    
     // Status color
     def stateColor = "#6c757d"  // gray default
     switch (state) {
@@ -520,17 +531,17 @@ def updateStatusHtml() {
     
     if (vehicleConnected) {
         html += """
-                <tr><td style="padding: 2px; font-weight: bold;">Current:</td><td style="padding: 2px;">${current} A</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Voltage:</td><td style="padding: 2px;">${voltage} V</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Power:</td><td style="padding: 2px;">${power} kW</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Session Energy:</td><td style="padding: 2px;">${sessionEnergy} kWh</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Session Time:</td><td style="padding: 2px;">${sessionTime} min</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Current:</td><td style="padding: 2px;">${currentStr} A</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Voltage:</td><td style="padding: 2px;">${voltageStr} V</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Power:</td><td style="padding: 2px;">${powerStr} kW</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Session Energy:</td><td style="padding: 2px;">${sessionEnergyStr} kWh</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Session Time:</td><td style="padding: 2px;">${sessionTimeStr} min</td></tr>
         """
     }
     
     html += """
-                <tr><td style="padding: 2px; font-weight: bold;">Max Current:</td><td style="padding: 2px;">${maxCurrent} A</td></tr>
-                <tr><td style="padding: 2px; font-weight: bold;">Temperature:</td><td style="padding: 2px;">${temperature}°C</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Max Current:</td><td style="padding: 2px;">${maxCurrentStr} A</td></tr>
+                <tr><td style="padding: 2px; font-weight: bold;">Temperature:</td><td style="padding: 2px;">${temperatureStr}°C</td></tr>
             </table>
         </div>
     """
