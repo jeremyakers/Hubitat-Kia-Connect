@@ -1346,7 +1346,7 @@ def handleFreshVehicleStatusResponse(response, device, isRetry = false) {
             runIn(2, "retryVehicleStatusRefresh", [data: [deviceNetworkId: device.deviceNetworkId]])
         } else if (reJson.status?.errorCode == 9001 && !isRetry) {
             log.error "Payload format error (9001) - this should not happen with the correct requestType format"
-            log.error "Request body was: ${jsonBody}"
+            log.error "Request body was: {\"requestType\": 0}"
         } else {
             log.error "Fresh vehicle status failed for ${device.label} with error code: ${reJson.status?.errorCode} - ${reJson.status?.errorMessage}"
         }
