@@ -93,8 +93,6 @@ metadata {
         // Commands
         command "refresh"
         command "pollVehicle"
-        command "Lock"
-        command "Unlock" 
         command "StartClimate"
         command "StopClimate"
         command "GetLocation"
@@ -430,12 +428,13 @@ def parse(String description) {
 // VEHICLE COMMANDS
 // ====================
 
-def Lock() {
+// Lock capability commands (for door locks)
+def lock() {
     log.info "Locking ${device.label}"
     parent.sendVehicleCommand(device, "lock")
 }
 
-def Unlock() {
+def unlock() {
     log.info "Unlocking ${device.label}"
     parent.sendVehicleCommand(device, "unlock")
 }
@@ -603,17 +602,6 @@ def componentVariableChanged(child, value) {
     log.info "Climate temperature set to ${temp}°F"
 }
 
-// Lock capability commands (for door locks)
-def lock() {
-    log.info "Locking ${device.label} (Lock capability)"
-    Lock()
-}
-
-def unlock() {
-    log.info "Unlocking ${device.label} (Lock capability)"
-    Unlock()
-}
-
 // ====================
 // STATUS UPDATES
 // ====================
@@ -706,7 +694,8 @@ def updateVehicleStatus(Map statusData) {
                     }
                     else if (key == "DoorLocks") {
                         // Map door lock status to Lock capability
-                        def lockValue = value.toString().toLowerCase().contains("locked") ? "locked" : "unlocked"
+                        // Be careful: "Unlocked" contains "locked"! Need exact match
+                        def lockValue = (value.toString() == "Locked") ? "locked" : "unlocked"
                         sendEvent(name: 'lock', value: lockValue)
                     }
                     else if (key == "isHome") {
