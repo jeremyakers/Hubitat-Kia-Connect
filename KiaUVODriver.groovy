@@ -198,12 +198,19 @@ def createClimateSwitch(dni, label) {
         try {
             child = addChildDevice("hubitat", "Generic Component Switch", dni, 
                 [name: "Generic Component Switch", label: "${device.label} - ${label}", isComponent: true])
-            child.off()
             log.info "Created climate switch child device: ${label}"
         } catch (Exception e) {
             log.error "Failed to create climate switch ${label}: ${e.message}"
+            return null
         }
     }
+    
+    // Initialize switch state if not already set
+    if (child && !child.currentValue("switch")) {
+        child.off()
+        log.debug "Initialized climate switch to OFF"
+    }
+    
     return child
 }
 
