@@ -186,23 +186,26 @@ def parseStatusResponse(data) {
     def isCharging = (stateCode == 3)  // State 3 = charging
     sendEvent(name: "switch", value: isCharging ? "on" : "off")
     
-    // Charging current and voltage
+    // Charging current and voltage (amp is in mA, voltage and pilot are already in V and A)
     if (data.amp != null) {
-        sendEvent(name: "chargingCurrent", value: data.amp, unit: "A")
-        sendEvent(name: "amperage", value: data.amp)  // CurrentMeasurement capability
+        def current = (data.amp / 1000).round(2)  // Convert mA to A and round to 2 decimal places
+        sendEvent(name: "chargingCurrent", value: current, unit: "A")
+        sendEvent(name: "amperage", value: current)  // CurrentMeasurement capability
     }
     
     if (data.pilot != null) {
-        sendEvent(name: "maxCurrent", value: data.pilot, unit: "A")
+        def maxCurrent = data.pilot.round(2)  // Already in A, just round to 2 decimal places
+        sendEvent(name: "maxCurrent", value: maxCurrent, unit: "A")
     }
     
     if (data.voltage != null) {
-        sendEvent(name: "voltage", value: data.voltage, unit: "V")
+        def voltage = data.voltage.round(2)  // Already in V, just round to 2 decimal places
+        sendEvent(name: "voltage", value: voltage, unit: "V")
     }
     
-    // Power calculation (if we have both current and voltage)
+    // Power calculation (amp is in mA, voltage is in V)
     if (data.amp != null && data.voltage != null) {
-        def power = ((data.amp * data.voltage) / 1000).round(2)  // Convert to kW and round to 2 decimal places
+        def power = ((data.amp / 1000) * data.voltage / 1000).round(2)  // Convert mA to A, multiply by V, then to kW and round to 2 decimal places
         sendEvent(name: "power", value: power, unit: "kW")
     }
     
@@ -220,7 +223,7 @@ def parseStatusResponse(data) {
     
     // Session time
     if (data.elapsed != null) {
-        def sessionMinutes = data.elapsed / 60  // Convert seconds to minutes
+        def sessionMinutes = (data.elapsed / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
         sendEvent(name: "sessionTime", value: sessionMinutes, unit: "min")
     }
     
@@ -396,16 +399,19 @@ def parse(String description) {
             break
             
         case "amp":
-            sendEvent(name: "chargingCurrent", value: value.toFloat(), unit: "A")
-            sendEvent(name: "amperage", value: value.toFloat())
+            def current = (value.toFloat() / 1000).round(2)  // Convert mA to A and round to 2 decimal places
+            sendEvent(name: "chargingCurrent", value: current, unit: "A")
+            sendEvent(name: "amperage", value: current)
             break
             
         case "voltage":
-            sendEvent(name: "voltage", value: value.toFloat(), unit: "V")
+            def voltage = value.toFloat().round(2)  // Already in V, just round to 2 decimal places
+            sendEvent(name: "voltage", value: voltage, unit: "V")
             break
             
         case "pilot":
-            sendEvent(name: "maxCurrent", value: value.toFloat(), unit: "A")
+            def maxCurrent = value.toFloat().round(2)  // Already in A, just round to 2 decimal places
+            sendEvent(name: "maxCurrent", value: maxCurrent, unit: "A")
             break
             
         case "temp":
@@ -425,7 +431,7 @@ def parse(String description) {
             break
             
         case "elapsed":
-            def sessionMinutes = value.toInteger() / 60
+            def sessionMinutes = (value.toInteger() / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
             sendEvent(name: "sessionTime", value: sessionMinutes, unit: "min")
             break
     }
