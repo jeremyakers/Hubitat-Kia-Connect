@@ -102,6 +102,7 @@ metadata {
         command "StopHornAndLights"
         command "StartCharge"
         command "StopCharge"
+        command "handleCommandFailure", [[name: "command", type: "STRING"], [name: "errorMessage", type: "STRING"]]
         command "updateVehicleStatus", [[name: "statusData", type: "JSON_OBJECT"]]
         command "updateLocation", [[name: "latitude", type: "STRING"], [name: "longitude", type: "STRING"]]
     }

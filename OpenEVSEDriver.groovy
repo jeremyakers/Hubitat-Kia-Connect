@@ -192,70 +192,70 @@ def parseStatusResponse(data) {
     
     // Charging current and voltage (amp is in mA, voltage and pilot are already in V and A)
     if (data.amp != null) {
-        def current = (data.amp.toFloat() / 1000).round(2)  // Convert mA to A and round to 2 decimal places
+        def current = ((data.amp as Double) / 1000).round(2)  // Convert mA to A and round to 2 decimal places
         sendEvent(name: "chargingCurrent", value: current, unit: "A")
         sendEvent(name: "amperage", value: current)  // CurrentMeasurement capability
     }
     
     if (data.pilot != null) {
-        def maxCurrent = data.pilot.toFloat().round(2)  // Already in A, just round to 2 decimal places
+        def maxCurrent = (data.pilot as Double).round(2)  // Already in A, just round to 2 decimal places
         sendEvent(name: "maxCurrent", value: maxCurrent, unit: "A")
     }
     
     if (data.voltage != null) {
-        def voltage = data.voltage.toFloat().round(2)  // Already in V, just round to 2 decimal places
+        def voltage = (data.voltage as Double).round(2)  // Already in V, just round to 2 decimal places
         sendEvent(name: "voltage", value: voltage, unit: "V")
     }
     
     // Power calculation (amp is in mA, voltage is in V)
     if (data.amp != null && data.voltage != null) {
-        def power = ((data.amp.toFloat() / 1000) * data.voltage.toFloat() / 1000).round(2)  // Convert mA to A, multiply by V, then to kW and round to 2 decimal places
+        def power = (((data.amp as Double) / 1000) * (data.voltage as Double) / 1000).round(2)  // Convert mA to A, multiply by V, then to kW and round to 2 decimal places
         sendEvent(name: "power", value: power, unit: "kW")
     }
     
     // Energy - session_energy is in Wh, total_energy is already in kWh
     if (data.session_energy != null) {
-        def sessionEnergy = (data.session_energy.toFloat() / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
+        def sessionEnergy = ((data.session_energy as Double) / 1000).round(2)  // Convert Wh to kWh and round to 2 decimal places
         sendEvent(name: "sessionEnergy", value: sessionEnergy, unit: "kWh")
     }
     
     // Total energy is already in kWh according to API docs
     if (data.total_energy != null) {
-        def totalEnergy = data.total_energy.toFloat().round(2)  // Already in kWh, just round to 2 decimal places
+        def totalEnergy = (data.total_energy as Double).round(2)  // Already in kWh, just round to 2 decimal places
         sendEvent(name: "totalEnergy", value: totalEnergy, unit: "kWh")
         sendEvent(name: "energy", value: totalEnergy)  // EnergyMeter capability
     }
     
     // Energy totals by period (all in kWh)
     if (data.total_day != null) {
-        def totalDay = data.total_day.toFloat().round(2)
+        def totalDay = (data.total_day as Double).round(2)
         sendEvent(name: "totalDay", value: totalDay, unit: "kWh")
     }
     
     if (data.total_week != null) {
-        def totalWeek = data.total_week.toFloat().round(2)
+        def totalWeek = (data.total_week as Double).round(2)
         sendEvent(name: "totalWeek", value: totalWeek, unit: "kWh")
     }
     
     if (data.total_month != null) {
-        def totalMonth = data.total_month.toFloat().round(2)
+        def totalMonth = (data.total_month as Double).round(2)
         sendEvent(name: "totalMonth", value: totalMonth, unit: "kWh")
     }
     
     if (data.total_year != null) {
-        def totalYear = data.total_year.toFloat().round(2)
+        def totalYear = (data.total_year as Double).round(2)
         sendEvent(name: "totalYear", value: totalYear, unit: "kWh")
     }
     
     // Session time
     if (data.elapsed != null) {
-        def sessionMinutes = (data.elapsed.toFloat() / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
+        def sessionMinutes = ((data.elapsed as Double) / 60).round(2)  // Convert seconds to minutes and round to 2 decimal places
         sendEvent(name: "sessionTime", value: sessionMinutes, unit: "min")
     }
     
     // Temperature
     if (data.temp != null) {
-        def tempCelsius = (data.temp.toFloat() / 10).round(2)  // Convert deci-degrees to Celsius and round to 2 decimal places
+        def tempCelsius = ((data.temp as Double) / 10).round(2)  // Convert deci-degrees to Celsius and round to 2 decimal places
         sendEvent(name: "temperature", value: tempCelsius, unit: "°C")
     }
     
