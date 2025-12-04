@@ -21,7 +21,6 @@ metadata {
         capability "Actuator"
         capability "Sensor"
         capability "Battery"
-        capability "Switch"
         capability "Lock"
         capability "PresenceSensor"
         capability "ContactSensor"
@@ -172,7 +171,10 @@ def updated() {
 def createClimateChildDevices() {
     def vehicleId = device.deviceNetworkId
     
-    // Always create defrost and steering controls
+    // Create climate on/off switch as a component
+    createClimateSwitch("${vehicleId}-climate-switch", "Climate Control")
+    
+    // Create defrost and steering controls
     createChildSwitch("${vehicleId}-defrost-front", "Front Defrost")
     createChildSwitch("${vehicleId}-defrost-rear", "Rear Defrost")
     createSteeringWheelControl("${vehicleId}-steering")
@@ -188,6 +190,21 @@ def createClimateChildDevices() {
         // Remove seat controls if detailed climate disabled
         removeSeatControls()
     }
+}
+
+def createClimateSwitch(dni, label) {
+    def child = getChildDevice(dni)
+    if (!child) {
+        try {
+            child = addChildDevice("hubitat", "Generic Component Switch", dni, 
+                [name: "Generic Component Switch", label: "${device.label} - ${label}", isComponent: true])
+            child.off()
+            log.info "Created climate switch child device: ${label}"
+        } catch (Exception e) {
+            log.error "Failed to create climate switch ${label}: ${e.message}"
+        }
+    }
+    return child
 }
 
 def createChildSwitch(dni, label) {
@@ -529,16 +546,14 @@ def StopCharge() {
 // STANDARD CAPABILITY COMMANDS
 // ====================
 
-// Switch capability commands (for climate control)
-def on() {
-    log.info "Turning on climate control for ${device.label}"
-    sendEvent(name: "switch", value: "on")
+// Climate child device event handler (called when child switch changes)
+def componentOn(child) {
+    log.info "Climate switch turned ON via child device"
     StartClimate()
 }
 
-def off() {
-    log.info "Turning off climate control for ${device.label}"
-    sendEvent(name: "switch", value: "off")
+def componentOff(child) {
+    log.info "Climate switch turned OFF via child device"
     StopClimate()
 }
 
@@ -604,25 +619,29 @@ def updateVehicleStatus(Map statusData) {
                         sendEvent(name: 'battery', value: value.toString())
                     }
                     else if (key == "AirControl") {
-                        // Update switch state based on actual climate status from vehicle
-                        // Only update if status has meaningfully changed to avoid overwriting user-initiated state
+                        // Update climate child switch state based on actual climate status from vehicle
                         def climateOn = value.toString().toLowerCase().contains("on") || 
                                        value.toString().toLowerCase().contains("running") || 
                                        value.toString().toLowerCase().contains("active")
                         
-                        def currentSwitch = device.currentValue("switch")
+                        def vehicleId = device.deviceNetworkId
+                        def climateSwitch = getChildDevice("${vehicleId}-climate-switch")
                         
-                        // If climate is confirmed ON and switch shows OFF, update to ON
-                        if (climateOn && currentSwitch == "off") {
-                            sendEvent(name: 'switch', value: "on")
-                            log.info "Climate confirmed running - switch updated to ON"
+                        if (climateSwitch) {
+                            def currentSwitch = climateSwitch.currentValue("switch")
+                            
+                            // If climate is confirmed ON and switch shows OFF, update to ON
+                            if (climateOn && currentSwitch == "off") {
+                                climateSwitch.on()
+                                log.info "Climate confirmed running - switch updated to ON"
+                            }
+                            // If climate is confirmed OFF and switch shows ON, update to OFF
+                            else if (!climateOn && currentSwitch == "on") {
+                                climateSwitch.off()
+                                log.info "Climate confirmed stopped - switch updated to OFF"
+                            }
+                            // Otherwise, leave switch state alone (user may have just triggered it)
                         }
-                        // If climate is confirmed OFF and switch shows ON, update to OFF
-                        else if (!climateOn && currentSwitch == "on") {
-                            sendEvent(name: 'switch', value: "off")
-                            log.info "Climate confirmed stopped - switch updated to OFF"
-                        }
-                        // Otherwise, leave switch state alone (user may have just triggered it)
                     }
                     else if (key == "AirTemp") {
                         // Map air temperature to climate temperature variable
