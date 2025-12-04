@@ -124,6 +124,7 @@ metadata {
         input name: "climateTemp", type: "number", title: "Climate temperature (°F)", defaultValue: 72, range: "60..85"
         input name: "climateDuration", type: "number", title: "Climate duration (minutes)", defaultValue: 10, range: "1..30"
         input name: "climateDefrost", type: "bool", title: "Enable defrost", defaultValue: false
+        input name: "steeringWheelLevel", type: "enum", title: "Heated steering wheel level (when switch is ON)", options: ["on", "low", "high"], defaultValue: "on", description: "Select 'on' for 2022-2023 models, 'low' or 'high' for 2024+ models"
         input name: "climateHeatedSteering", type: "bool", title: "Enable heated steering wheel", defaultValue: false
         input name: "climateHeatedSeats", type: "bool", title: "Enable heated seats", defaultValue: false
         input name: "climateCooledSeats", type: "bool", title: "Enable cooled seats", defaultValue: false
@@ -173,7 +174,7 @@ def createClimateChildDevices() {
     // Always create defrost and steering controls
     createChildSwitch("${vehicleId}-defrost-front", "Front Defrost")
     createChildSwitch("${vehicleId}-defrost-rear", "Rear Defrost")
-    createSteeringWheelControl("${vehicleId}-steering")
+    createChildSwitch("${vehicleId}-steering", "Heated Steering Wheel")
     
     // Create seat controls only if detailed climate is enabled
     def hasSeats = device.getSetting("useDetailedClimate")
@@ -203,30 +204,6 @@ def createChildSwitch(dni, label) {
     return child
 }
 
-def createSteeringWheelControl(dni) {
-    def child = getChildDevice(dni)
-    if (!child) {
-        try {
-            child = addChildDevice("kia-uvo", "Kia Climate Steering Wheel Control", dni,
-                [name: "Kia Climate Steering Wheel Control", label: "${device.label} - Heated Steering Wheel", isComponent: false])
-            child.setSpeed("off")
-            log.info "Created steering wheel control"
-        } catch (Exception e) {
-            log.error "Failed to create steering wheel control: ${e.message}"
-            return null
-        }
-    }
-    
-    // Set supported speeds based on vehicle model (do this every time to ensure it's set)
-    if (child) {
-        def modelYear = device.currentValue("ModelYear")?.toInteger() ?: 2022
-        def supportedSpeeds = (modelYear >= 2024) ? ["off", "low", "high"] : ["off", "on"]
-        child.sendEvent(name: "supportedFanSpeeds", value: supportedSpeeds)
-        log.debug "Set steering wheel supported speeds: ${supportedSpeeds} (model year: ${modelYear})"
-    }
-    
-    return child
-}
 
 def createSeatControl(dni, label, supportsCooling) {
     def child = getChildDevice(dni)
@@ -404,10 +381,10 @@ def StartClimate() {
     def rearDefrost = getChildDevice("${vehicleId}-defrost-rear")?.currentValue("switch") == "on"
     def defrost = frontDefrost || rearDefrost
     
-    // Read steering wheel fan speed
+    // Read steering wheel switch - if ON, use the configured level from preferences
     def steeringChild = getChildDevice("${vehicleId}-steering")
-    def steeringSpeed = steeringChild?.currentValue("speed") ?: "off"
-    def heatedSteering = convertFanSpeedToLevel(steeringSpeed)
+    def steeringOn = steeringChild?.currentValue("switch") == "on"
+    def heatedSteering = steeringOn ? (device.getSetting("steeringWheelLevel") ?: "on") : "off"
     
     // Build seat settings from child devices
     def seatSettings = [:]
@@ -430,16 +407,6 @@ def StartClimate() {
     ])
 }
 
-def convertFanSpeedToLevel(speed) {
-    switch(speed) {
-        case "off": return "off"
-        case "on": return "on"
-        case "low": return "low"
-        case "medium": return "medium"
-        case "high": return "high"
-        default: return "off"
-    }
-}
 
 def getSeatSettingFromChild(dni) {
     def child = getChildDevice(dni)
